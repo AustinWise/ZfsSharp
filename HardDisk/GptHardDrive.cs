@@ -94,7 +94,14 @@ namespace ZfsSharp.HardDisk
         public GptHardDrive(IHardDisk hdd)
         {
             mHdd = hdd;
-            mHdd.Get(0, out mHeader);
+
+            //check for MBR protective partition
+            if (!MbrHardDisk.IsMbr(hdd))
+                throw new Exception("Not MBR.");
+            if (MbrHardDisk.GetType(hdd, 0) != MbrPartitionType.GptProtective)
+                throw new Exception("Not GPT.");
+
+            mHdd.Get(SectorSize, out mHeader); //LBA 1
             if (mHeader.Signature != EfiMagic)
                 throw new Exception("Not a GPT.");
             if (mHeader.Revision != CurrentRevision)
@@ -120,14 +127,13 @@ namespace ZfsSharp.HardDisk
             if (mPartition.Type != SolarisUsrPartitionId || mPartition.Name != "zfs")
                 throw new Exception("Not a ZFS partition.");
 
-            mOffset = SectorSize * (mPartition.FirstLba - mHeader.CurrentLba);
+            mOffset = SectorSize * mPartition.FirstLba;
             mSize = SectorSize * (mPartition.LastLba - mPartition.FirstLba);
         }
 
         private T GetLba<T>(long absoluteLba, long extraOffset) where T : struct
         {
-            long relativeLba = absoluteLba - mHeader.CurrentLba;
-            long byteOffset = relativeLba * SectorSize + extraOffset;
+            long byteOffset = absoluteLba * SectorSize + extraOffset;
             T ret;
             mHdd.Get<T>(byteOffset, out ret);
             return ret;
@@ -140,7 +146,7 @@ namespace ZfsSharp.HardDisk
 
         public long Length
         {
-            get { return SectorSize * (mPartition.LastLba - mPartition.FirstLba); }
+            get { return mSize; }
         }
     }
 }

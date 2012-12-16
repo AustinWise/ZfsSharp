@@ -132,8 +132,7 @@ namespace ZfsSharp
         static void Main(string[] args)
         {
             var vhd = new VhdHardDisk(@"D:\VPC\SmartOs\SmartOs.vhd");
-            var mbr = new MbrHardDisk(vhd, 0);
-            var gpt = new GptHardDrive(mbr);
+            var gpt = new GptHardDrive(vhd);
 
             List<uberblock_t> blocks = new List<uberblock_t>();
             for (long i = 0; i < 128; i++)
