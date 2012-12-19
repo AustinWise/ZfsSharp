@@ -83,6 +83,12 @@ namespace ZfsSharp
             Console.WriteLine();
         }
 
+        unsafe static T ToStruct<T>(byte[] bytes) where T : struct
+        {
+            fixed (byte* ptr = bytes)
+                return (T)Marshal.PtrToStructure(new IntPtr(ptr), typeof(T));
+        }
+
         public const int SPA_MINBLOCKSHIFT = 9;
         public const int SPA_MAXBLOCKSHIFT = 17;
         const long SPA_MINBLOCKSIZE = (1L << SPA_MINBLOCKSHIFT);
@@ -91,4 +97,6 @@ namespace ZfsSharp
         const string ROOT_DATASET = "root_dataset";
         const string CONFIG = "config";
     }
+
+
 }

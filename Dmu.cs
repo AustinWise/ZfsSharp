@@ -14,6 +14,18 @@ namespace ZfsSharp
             mZio = zio;
         }
 
+        unsafe public byte[] ReadBonus(dnode_phys_t dn)
+        {
+            int bonusOffset = (dn.NBlkPtrs - 1) * sizeof(blkptr_t);
+            int bonusSize = dnode_phys_t.DN_MAX_BONUSLEN - bonusOffset;
+            if ((dn.Flags & DnodeFlags.SpillBlkptr) != 0)
+                bonusSize -= sizeof(blkptr_t);
+
+            byte[] bonus = new byte[bonusSize];
+            Marshal.Copy(new IntPtr(dn.Bonus + bonusOffset), bonus, 0, bonusSize);
+            return bonus;
+        }
+
         unsafe public dnode_phys_t ReadFromObjectSet(dnode_phys_t metanode, long index)
         {
             var dnStuff = Read(metanode);
@@ -218,7 +230,7 @@ namespace ZfsSharp
          */
         const int DNODE_SIZE = (1 << DNODE_SHIFT);
         const int DN_MAX_NBLKPTR = ((DNODE_SIZE - DNODE_CORE_SIZE) >> blkptr_t.SPA_BLKPTRSHIFT);
-        const int DN_MAX_BONUSLEN = (DNODE_SIZE - DNODE_CORE_SIZE - (1 << blkptr_t.SPA_BLKPTRSHIFT));
+        public const int DN_MAX_BONUSLEN = (DNODE_SIZE - DNODE_CORE_SIZE - (1 << blkptr_t.SPA_BLKPTRSHIFT));
         const long DN_MAX_OBJECT = (1L << DN_MAX_OBJECT_SHIFT);
         public const int DN_ZERO_BONUSLEN = (DN_MAX_BONUSLEN + 1);
         const int DN_KILL_SPILLBLK = (1);
@@ -263,7 +275,7 @@ namespace ZfsSharp
         public blkptr_t blkptr3;
 
         [FieldOffset(0xc0)]
-        public fixed byte Bonus[DN_MAX_BONUSLEN]; //sizeof(blkptr_t)
+        public fixed byte Bonus[DN_MAX_BONUSLEN];
         [FieldOffset(0x180)]
         public blkptr_t Spill;
     }

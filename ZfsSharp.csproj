@@ -46,6 +46,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Dmu.cs" />
+    <Compile Include="Dsl.cs" />
     <Compile Include="Flecter4.cs" />
     <Compile Include="HardDisk\GptHardDrive.cs" />
     <Compile Include="HardDisk\IHardDisk.cs" />
