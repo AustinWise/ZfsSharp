@@ -56,28 +56,27 @@ namespace ZfsSharp
 
             var rootbp = ub.rootbp;
 
-            byte[] logicalBytes = zio.Read(rootbp);
+            objset_phys_t mos = zio.Get<objset_phys_t>(rootbp);
 
-            objset_phys_t dn;
-            fixed (byte* ptr = logicalBytes)
-            {
-                dn = (objset_phys_t)Marshal.PtrToStructure(new IntPtr(ptr), typeof(objset_phys_t));
-            }
-
-            dnode_phys_t objectDirectory = dmu.ReadFromObjectSet(dn.os_meta_dnode, 1);
-
+            dnode_phys_t objectDirectory = dmu.ReadFromObjectSet(mos.os_meta_dnode, 1);
             var objDir = zap.Parse(objectDirectory);
 
-            var root = dmu.ReadFromObjectSet(dn.os_meta_dnode, objDir[ROOT_DATASET]);
-
-            var configDn = dmu.ReadFromObjectSet(dn.os_meta_dnode, objDir[CONFIG]);
+            var configDn = dmu.ReadFromObjectSet(mos.os_meta_dnode, objDir[CONFIG]);
             var confginNv = new NvList(new MemoryStream(dmu.Read(configDn)));
-            
+
+            var rootDslObj = dmu.ReadFromObjectSet(mos.os_meta_dnode, objDir[ROOT_DATASET]);
+            var rootDsl = ToStruct<dsl_dir_phys_t>(dmu.ReadBonus(rootDslObj));
+
+            var rootDataSetObj = dmu.ReadFromObjectSet(mos.os_meta_dnode, rootDsl.head_dataset_obj);
+            var rootDataSet = ToStruct<dsl_dataset_phys_t>(dmu.ReadBonus(rootDataSetObj));
+            var rootZfs = zio.Get<objset_phys_t>(rootDataSet.bp);
+
             /*
              * TODO:
              *  DSL
              *  Indirect blocks
              *  Fat ZAP
+             *  ZPL
              */
 
             Console.WriteLine();
