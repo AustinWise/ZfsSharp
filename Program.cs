@@ -27,8 +27,8 @@ namespace ZfsSharp
 
         unsafe static void Main(string[] args)
         {
-            //var vhd = new VhdHardDisk(@"D:\VPC\SmartOs\SmartOs.vhd");
-            var vhd = new VhdHardDisk(@"d:\VPC\SmartOs3\SmartOs3.vhd");
+            var vhd = new VhdHardDisk(@"D:\VPC\SmartOs\SmartOs.vhd");
+            //var vhd = new VhdHardDisk(@"d:\VPC\SmartOs3\SmartOs3.vhd");
             var gpt = new GptHardDrive(vhd);
 
             List<uberblock_t> blocks = new List<uberblock_t>();
@@ -52,6 +52,7 @@ namespace ZfsSharp
             var dev = new OffsetHardDisk(gpt, VDevLableSizeStart, gpt.Length - VDevLableSizeStart - VDevLableSizeEnd);
             var zio = new Zio(new[] { dev });
             var dmu = new Dmu(zio);
+            var zap = new Zap(dmu);
 
             var rootbp = ub.rootbp;
 
@@ -63,22 +64,30 @@ namespace ZfsSharp
                 dn = (objset_phys_t)Marshal.PtrToStructure(new IntPtr(ptr), typeof(objset_phys_t));
             }
 
-            var dnStuff = dmu.Read(dn.os_meta_dnode);
+            dnode_phys_t objectDirectory = dmu.ReadFromObjectSet(dn.os_meta_dnode, 1);
 
-            dnode_phys_t objectDirectory;
-            fixed (byte* ptr = dnStuff)
-            {
-                objectDirectory = (dnode_phys_t)Marshal.PtrToStructure(new IntPtr(ptr + sizeof(dnode_phys_t)), typeof(dnode_phys_t));
-            }
+            var objDir = zap.Parse(objectDirectory);
 
+            var root = dmu.ReadFromObjectSet(dn.os_meta_dnode, objDir[ROOT_DATASET]);
+
+            
+            
             /*
              * TODO:
-             *  ZAP for reading the object dir
              *  DSL
+             *  Indirect blocks
+             *  Fat ZAP
              */
 
 
             Console.WriteLine();
         }
+
+        public const int SPA_MINBLOCKSHIFT = 9;
+        public const int SPA_MAXBLOCKSHIFT = 17;
+        const long SPA_MINBLOCKSIZE = (1L << SPA_MINBLOCKSHIFT);
+        const long SPA_MAXBLOCKSIZE = (1L << SPA_MAXBLOCKSHIFT);
+
+        const string ROOT_DATASET = "root_dataset";
     }
 }

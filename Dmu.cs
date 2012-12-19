@@ -14,6 +14,15 @@ namespace ZfsSharp
             mZio = zio;
         }
 
+        unsafe public dnode_phys_t ReadFromObjectSet(dnode_phys_t metanode, long index)
+        {
+            var dnStuff = Read(metanode);
+            fixed (byte* ptr = dnStuff)
+            {
+                return (dnode_phys_t)Marshal.PtrToStructure(new IntPtr(ptr + sizeof(dnode_phys_t) * index), typeof(dnode_phys_t));
+            }
+        }
+
         public byte[] Read(dnode_phys_t dn)
         {
             if (dn.NLevels != 1)
