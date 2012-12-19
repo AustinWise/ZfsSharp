@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Runtime.InteropServices;
+using System.IO;
 
 namespace ZfsSharp.HardDisk
 {
@@ -142,6 +143,15 @@ namespace ZfsSharp.HardDisk
         public void Get<T>(long offset, out T @struct) where T : struct
         {
             mHdd.Get<T>(mOffset + offset, out @struct);
+        }
+
+        public Stream GetStream(long offset, long size)
+        {
+            return mHdd.GetStream(mOffset + offset, size);
+        }
+        public Stream GetStream()
+        {
+            return mHdd.GetStream(mOffset, mSize);
         }
 
         public long Length

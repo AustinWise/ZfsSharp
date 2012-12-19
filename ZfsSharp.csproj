@@ -45,12 +45,19 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Dmu.cs" />
+    <Compile Include="Flecter4.cs" />
     <Compile Include="HardDisk\GptHardDrive.cs" />
     <Compile Include="HardDisk\IHardDisk.cs" />
     <Compile Include="HardDisk\MbrHardDisk.cs" />
+    <Compile Include="HardDisk\OffsetHardDisk.cs" />
+    <Compile Include="Lzjb.cs" />
+    <Compile Include="NvList.cs" />
     <Compile Include="HardDisk\VhdHardDisk.cs" />
+    <Compile Include="NvListBinaryReader.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Zio.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

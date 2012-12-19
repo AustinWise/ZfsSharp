@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -8,130 +9,26 @@ using ZfsSharp.HardDisk;
 
 namespace ZfsSharp
 {
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    struct uberblock_t
+    {
+        public ulong Magic;
+        public ulong Version;
+        public ulong Txg;
+        public ulong GuidSum;
+        public ulong TimeStamp;
+        public blkptr_t rootbp;
+    }
+
     class Program
     {
-        const int SPA_MINBLOCKSHIFT = 9;
         const ulong UbMagic = 0x00bab10c;
 
-        [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        struct uberblock_t
+
+        unsafe static void Main(string[] args)
         {
-            public ulong Magic;
-            public ulong Version;
-            public ulong Txg;
-            public ulong GuidSum;
-            public ulong TimeStamp;
-            public blkptr_t rootbp;
-        }
-        [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        struct zio_cksum_t
-        {
-            long word1;
-            long word2;
-            long word3;
-            long word4;
-        }
-        [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        struct dva_t
-        {
-            public int VDev;
-            public byte GRID;
-            byte asize1;
-            byte asize2;
-            byte asize3;
-            long offset;
-
-            public long ASize
-            {
-                get
-                {
-                    long asize = asize1 | (asize2 << 8) | (asize3 << 16);
-                    return asize << SPA_MINBLOCKSHIFT;
-                }
-            }
-
-            public long Offset
-            {
-                get { return offset & ~(1 << 63); }
-            }
-
-            public bool IsGang
-            {
-                get { return (offset & (1 << 63)) != 0; }
-            }
-        }
-        [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        struct blkptr_t
-        {
-            public dva_t dva1;
-            public dva_t dva2;
-            public dva_t dva3;
-
-            //long prop;
-            byte lvl;
-            public byte Type;
-            public zio_checksum Checksum;
-            public zio_compress Comp;
-            public short PSIZE;
-            public short LSIZE;
-
-            long pad1;
-            long pad2;
-            public long phys_birth;
-            public long birth;
-            public long fill;
-            public zio_cksum_t cksum;
-
-            public int Level
-            {
-                get { return lvl & 0x1F; }
-            }
-
-            public bool IsGang
-            {
-                get { return (lvl & 0x80) != 0; }
-            }
-
-            public bool IsDedup
-            {
-                get { return (lvl & 0x40) != 0; }
-            }
-        }
-        enum zio_checksum : byte
-        {
-            INHERIT = 0,
-            ON,
-            OFF,
-            LABEL,
-            GANG_HEADER,
-            ZILOG,
-            FLETCHER_2,
-            FLETCHER_4,
-            SHA256,
-            ZILOG2,
-        }
-        enum zio_compress : byte
-        {
-            INHERIT = 0,
-            ON,
-            OFF,
-            LZJB,
-            EMPTY,
-            GZIP_1,
-            GZIP_2,
-            GZIP_3,
-            GZIP_4,
-            GZIP_5,
-            GZIP_6,
-            GZIP_7,
-            GZIP_8,
-            GZIP_9,
-            ZLE,
-        }
-
-        static void Main(string[] args)
-        {
-            var vhd = new VhdHardDisk(@"D:\VPC\SmartOs\SmartOs.vhd");
+            //var vhd = new VhdHardDisk(@"D:\VPC\SmartOs\SmartOs.vhd");
+            var vhd = new VhdHardDisk(@"d:\VPC\SmartOs3\SmartOs3.vhd");
             var gpt = new GptHardDrive(vhd);
 
             List<uberblock_t> blocks = new List<uberblock_t>();
@@ -143,7 +40,44 @@ namespace ZfsSharp
                 if (b.Magic == UbMagic)
                     blocks.Add(b);
             }
-            var bb = blocks.OrderByDescending(u => u.Txg).First();
+            var ub = blocks.OrderByDescending(u => u.Txg).First();
+
+            NvList nv;
+            using (var s = gpt.GetStream(16 << 10, 112 << 10))
+                nv = new NvList(s);
+            var diskGuid = nv.Get<UInt64>("guid");
+
+            const int VDevLableSizeStart = 4 << 20;
+            const int VDevLableSizeEnd = 512 << 10;
+            var dev = new OffsetHardDisk(gpt, VDevLableSizeStart, gpt.Length - VDevLableSizeStart - VDevLableSizeEnd);
+            var zio = new Zio(new[] { dev });
+            var dmu = new Dmu(zio);
+
+            var rootbp = ub.rootbp;
+
+            byte[] logicalBytes = zio.Read(rootbp);
+
+            objset_phys_t dn;
+            fixed (byte* ptr = logicalBytes)
+            {
+                dn = (objset_phys_t)Marshal.PtrToStructure(new IntPtr(ptr), typeof(objset_phys_t));
+            }
+
+            var dnStuff = dmu.Read(dn.os_meta_dnode);
+
+            dnode_phys_t objectDirectory;
+            fixed (byte* ptr = dnStuff)
+            {
+                objectDirectory = (dnode_phys_t)Marshal.PtrToStructure(new IntPtr(ptr + sizeof(dnode_phys_t)), typeof(dnode_phys_t));
+            }
+
+            /*
+             * TODO:
+             *  ZAP for reading the object dir
+             *  DSL
+             */
+
+
             Console.WriteLine();
         }
     }
