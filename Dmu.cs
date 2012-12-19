@@ -20,11 +20,11 @@ namespace ZfsSharp
                 throw new Exception();
             byte[] data1, data2, data3;
             data1 = mZio.Read(dn.blkptr1);
-            if (dn.NBlkPtrs >= 2)
+            if (dn.NBlkPtrs >= 2 && dn.MaxBlkId > 0)
                 data2 = mZio.Read(dn.blkptr2);
             else
                 data2 = new byte[0];
-            if (dn.NBlkPtrs == 3)
+            if (dn.NBlkPtrs == 3 && dn.MaxBlkId > 1)
                 data3 = mZio.Read(dn.blkptr3);
             else
                 data3 = new byte[0];
