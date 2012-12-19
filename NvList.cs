@@ -102,6 +102,14 @@ namespace ZfsSharp
                     case NvDataType.NVLIST:
                         val = new NvList(r);
                         break;
+                    case NvDataType.NVLIST_ARRAY:
+                        var array = new NvList[numberOfElements];
+                        for (int i = 0; i < numberOfElements; i++)
+                        {
+                            array[i] = new NvList(r);
+                        }
+                        val = array;
+                        break;
                     default:
                         throw new NotImplementedException();
                 }

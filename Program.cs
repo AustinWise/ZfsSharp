@@ -70,7 +70,8 @@ namespace ZfsSharp
 
             var root = dmu.ReadFromObjectSet(dn.os_meta_dnode, objDir[ROOT_DATASET]);
 
-            
+            var configDn = dmu.ReadFromObjectSet(dn.os_meta_dnode, objDir[CONFIG]);
+            var confginNv = new NvList(new MemoryStream(dmu.Read(configDn)));
             
             /*
              * TODO:
@@ -78,7 +79,6 @@ namespace ZfsSharp
              *  Indirect blocks
              *  Fat ZAP
              */
-
 
             Console.WriteLine();
         }
@@ -89,5 +89,6 @@ namespace ZfsSharp
         const long SPA_MAXBLOCKSIZE = (1L << SPA_MAXBLOCKSHIFT);
 
         const string ROOT_DATASET = "root_dataset";
+        const string CONFIG = "config";
     }
 }

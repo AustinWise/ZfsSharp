@@ -90,8 +90,6 @@ namespace ZfsSharp.HardDisk
 
         public VhdHardDisk(string path)
         {
-            Console.WriteLine(Marshal.SizeOf(typeof(VhdHeader)));
-
             var fi = new FileInfo(path);
 
             mFile = MemoryMappedFile.CreateFromFile(path, FileMode.Open);
