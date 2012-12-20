@@ -9,7 +9,7 @@ namespace ZfsSharp
 {
     class Zio
     {
-        const long SECTOR_SIZE = 512;
+        const int SECTOR_SIZE = 512;
         const int SPA_MINBLOCKSHIFT = 9;
 
         private IHardDisk[] mVdevs;
@@ -23,6 +23,7 @@ namespace ZfsSharp
             mChecksums.Add(zio_checksum.FLETCHER_4, new Flecter4());
 
             mCompression.Add(zio_compress.LZJB, new Lzjb());
+            mCompression.Add(zio_compress.OFF, new NoCompression());
         }
 
         public byte[] Read(blkptr_t blkptr)
@@ -58,7 +59,7 @@ namespace ZfsSharp
 
             IHardDisk dev = mVdevs[dva.VDev];
 
-            long physicalSize = ((long)blkptr.PSize + 1) * SECTOR_SIZE;
+            int physicalSize = ((int)blkptr.PSize + 1) * SECTOR_SIZE;
 
             using (var s = dev.GetStream(dva.Offset << 9, physicalSize))
             {
@@ -74,10 +75,10 @@ namespace ZfsSharp
             using (var s = dev.GetStream(dva.Offset << 9, physicalSize))
             {
                 var r = new BinaryReader(s);
-                physicalBytes = r.ReadBytes((int)physicalSize);
+                physicalBytes = r.ReadBytes(physicalSize);
             }
 
-            byte[] logicalBytes = new byte[((long)blkptr.LSize + 1) * 512];
+            byte[] logicalBytes = new byte[((long)blkptr.LSize + 1) * SECTOR_SIZE];
             mCompression[blkptr.Compress].Decompress(physicalBytes, logicalBytes);
 
             return logicalBytes;
@@ -88,6 +89,14 @@ namespace ZfsSharp
             byte[] bytes = Read(blkptr);
             fixed (byte* ptr = bytes)
                 return (T)Marshal.PtrToStructure(new IntPtr(ptr), typeof(T));
+        }
+
+        class NoCompression : ICompression
+        {
+            public void Decompress(byte[] input, byte[] output)
+            {
+                Buffer.BlockCopy(input, 0, output, 0, input.Length);
+            }
         }
     }
 

@@ -45,6 +45,10 @@ namespace ZfsSharp
             NvList nv;
             using (var s = gpt.GetStream(16 << 10, 112 << 10))
                 nv = new NvList(s);
+            if (nv.Get<ulong>("version") != 5000)
+            {
+                throw new NotSupportedException();
+            }
             var diskGuid = nv.Get<UInt64>("guid");
 
             const int VDevLableSizeStart = 4 << 20;
@@ -58,23 +62,40 @@ namespace ZfsSharp
 
             objset_phys_t mos = zio.Get<objset_phys_t>(rootbp);
 
-            dnode_phys_t objectDirectory = dmu.ReadFromObjectSet(mos.os_meta_dnode, 1);
+            dnode_phys_t objectDirectory = dmu.ReadFromObjectSet(mos, 1);
             var objDir = zap.Parse(objectDirectory);
 
-            var configDn = dmu.ReadFromObjectSet(mos.os_meta_dnode, objDir[CONFIG]);
+            var configDn = dmu.ReadFromObjectSet(mos, objDir[CONFIG]);
             var confginNv = new NvList(new MemoryStream(dmu.Read(configDn)));
 
-            var rootDslObj = dmu.ReadFromObjectSet(mos.os_meta_dnode, objDir[ROOT_DATASET]);
-            var rootDsl = ToStruct<dsl_dir_phys_t>(dmu.ReadBonus(rootDslObj));
+            var rootDslObj = dmu.ReadFromObjectSet(mos, objDir[ROOT_DATASET]);
+            var rootDsl = dmu.GetBonus<dsl_dir_phys_t>(rootDslObj);
 
-            var rootDataSetObj = dmu.ReadFromObjectSet(mos.os_meta_dnode, rootDsl.head_dataset_obj);
-            var rootDataSet = ToStruct<dsl_dataset_phys_t>(dmu.ReadBonus(rootDataSetObj));
+            var rootDataSetObj = dmu.ReadFromObjectSet(mos, rootDsl.head_dataset_obj);
+            var rootDataSet = dmu.GetBonus<dsl_dataset_phys_t>(rootDataSetObj);
+
             var rootZfs = zio.Get<objset_phys_t>(rootDataSet.bp);
+            var rootZfaObjDir = zap.Parse(dmu.ReadFromObjectSet(rootZfs, 1));
+            if (rootZfaObjDir["VERSION"] != 5)
+                throw new NotSupportedException();
+
+            var saAttrsDn = dmu.ReadFromObjectSet(rootZfs, rootZfaObjDir["SA_ATTRS"]);
+            var saAttrs = zap.Parse(saAttrsDn);
+            var saLayouts = zap.Parse(dmu.ReadFromObjectSet(rootZfs, saAttrs["LAYOUTS"]));
+
+
+            var rootDirDnode = dmu.ReadFromObjectSet(rootZfs, rootZfaObjDir["ROOT"]);
+            var rootSaHeader = dmu.GetBonus<sa_hdr_phys_t>(rootDirDnode);
+            var rootDirContents = zap.Parse(rootDirDnode);
+
+            var fileId = rootDirContents["currbooted"];
+            var fileDn = dmu.ReadFromObjectSet(rootZfs, fileId);
+            var fileSa = dmu.GetBonus<sa_hdr_phys_t>(fileDn);
+            var bytes = Encoding.ASCII.GetString(dmu.Read(fileDn));
 
             /*
              * TODO:
              *  DSL
-             *  Indirect blocks
              *  Fat ZAP
              *  ZPL
              */
@@ -82,10 +103,25 @@ namespace ZfsSharp
             Console.WriteLine();
         }
 
-        unsafe static T ToStruct<T>(byte[] bytes) where T : struct
+        public static T ToStruct<T>(byte[] bytes) where T : struct
+        {
+            return ToStruct<T>(bytes, 0);
+        }
+
+        public unsafe static T ToStruct<T>(byte[] bytes, long offset) where T : struct
         {
             fixed (byte* ptr = bytes)
-                return (T)Marshal.PtrToStructure(new IntPtr(ptr), typeof(T));
+                return ToStruct<T>(ptr, offset, bytes.Length);
+        }
+
+        public unsafe static T ToStruct<T>(byte* ptr, long offset, long ptrLength) where T : struct
+        {
+            if (offset < 0 || ptrLength <= 0)
+                throw new ArgumentOutOfRangeException();
+            Type t = typeof(T);
+            if (offset + Marshal.SizeOf(t) > ptrLength)
+                throw new ArgumentOutOfRangeException();
+            return (T)Marshal.PtrToStructure(new IntPtr(ptr + offset), t);
         }
 
         public const int SPA_MINBLOCKSHIFT = 9;

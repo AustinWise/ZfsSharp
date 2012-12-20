@@ -14,6 +14,20 @@ namespace ZfsSharp
             mZio = zio;
         }
 
+        unsafe public T GetBonus<T>(dnode_phys_t dn) where T : struct
+        {
+            Type t = typeof(T);
+            int bonusOffset = (dn.NBlkPtrs - 1) * sizeof(blkptr_t);
+            int bonusSize = dnode_phys_t.DN_MAX_BONUSLEN - bonusOffset;
+            if ((dn.Flags & DnodeFlags.SpillBlkptr) != 0)
+                bonusSize -= sizeof(blkptr_t);
+
+            if (Marshal.SizeOf(t) > bonusSize)
+                throw new ArgumentOutOfRangeException();
+
+            return (T)Marshal.PtrToStructure(new IntPtr(dn.Bonus + bonusOffset), typeof(T));
+        }
+
         unsafe public byte[] ReadBonus(dnode_phys_t dn)
         {
             int bonusOffset = (dn.NBlkPtrs - 1) * sizeof(blkptr_t);
@@ -26,36 +40,83 @@ namespace ZfsSharp
             return bonus;
         }
 
-        unsafe public dnode_phys_t ReadFromObjectSet(dnode_phys_t metanode, long index)
+        unsafe public dnode_phys_t ReadFromObjectSet(objset_phys_t os, long index)
         {
-            var dnStuff = Read(metanode);
-            fixed (byte* ptr = dnStuff)
+            var dnStuff = Read(os.MetaDnode, index << dnode_phys_t.DNODE_SHIFT, sizeof(dnode_phys_t));
+            return Program.ToStruct<dnode_phys_t>(dnStuff);
+        }
+
+        //TODO: fix the off-by-one errors that are problably in here
+        public byte[] Read(dnode_phys_t dn, long offset, long size)
+        {
+            if (offset < 0 || size <= 0)
+                throw new ArgumentOutOfRangeException();
+            long blockSize = dn.DataBlkSizeSec * 512;
+            long maxSize = (dn.MaxBlkId + 1) * blockSize;
+            if ((offset + size) > maxSize)
+                throw new ArgumentOutOfRangeException();
+
+            List<blkptr_t> dataBlockPtrs = new List<blkptr_t>();
+            for (long i = offset; i < (offset + size); i += blockSize)
             {
-                return (dnode_phys_t)Marshal.PtrToStructure(new IntPtr(ptr + sizeof(dnode_phys_t) * index), typeof(dnode_phys_t));
+                long blockId = offset / blockSize;
+                dataBlockPtrs.Add(GetBlock(ref dn, blockId));
             }
+
+            var ret = new byte[size];
+            long retNdx = 0;
+            for (int i = 0; i < dataBlockPtrs.Count; i++)
+            {
+                int startNdx = 0;
+                int cpyCount = (int)blockSize;
+                if (i == 0)
+                    startNdx += (int)(offset % blockSize);
+                if (i == dataBlockPtrs.Count - 1)
+                {
+                    cpyCount = (int)((offset + size) % blockSize);
+                    if (cpyCount == 0)
+                        cpyCount = (int)blockSize;
+                    cpyCount -= startNdx;
+                }
+
+                if (retNdx > Int32.MaxValue)
+                    throw new NotImplementedException("No support for blocks this big yet.");
+
+                var bytes = mZio.Read(dataBlockPtrs[i]);
+                Buffer.BlockCopy(bytes, startNdx, ret, (int)retNdx, cpyCount);
+                retNdx += blockSize;
+            }
+
+            //var dataBytes = mZio.Read(ptr);
+            //var ret = new byte[size];
+            //Buffer.BlockCopy(dataBytes, (int)(offset % blockSize), ret, 0, (int)size);
+            return ret;
+        }
+
+        private blkptr_t GetBlock(ref dnode_phys_t dn, long blockId)
+        {
+            long indirMask = (1 << dn.IndirectBlockShift) - 1;
+
+            var indirOffsets = new Stack<long>(dn.NLevels);
+            for (int i = 0; i < dn.NLevels; i++)
+            {
+                indirOffsets.Push(blockId & indirMask);
+                blockId >>= dn.IndirectBlockShift;
+            }
+
+            blkptr_t ptr = dn.GetBlkptr(indirOffsets.Pop());
+            while (indirOffsets.Count != 0)
+            {
+                var indirBlock = mZio.Read(ptr);
+                var indirectNdx = indirOffsets.Pop();
+                ptr = Program.ToStruct<blkptr_t>(indirBlock, indirectNdx * (1 << blkptr_t.SPA_BLKPTRSHIFT));
+            }
+            return ptr;
         }
 
         public byte[] Read(dnode_phys_t dn)
         {
-            if (dn.NLevels != 1)
-                throw new Exception();
-            byte[] data1, data2, data3;
-            data1 = mZio.Read(dn.blkptr1);
-            if (dn.NBlkPtrs >= 2 && dn.MaxBlkId > 0)
-                data2 = mZio.Read(dn.blkptr2);
-            else
-                data2 = new byte[0];
-            if (dn.NBlkPtrs == 3 && dn.MaxBlkId > 1)
-                data3 = mZio.Read(dn.blkptr3);
-            else
-                data3 = new byte[0];
-
-            var ret = new byte[data1.LongLength + data2.LongLength + data3.LongLength];
-            Buffer.BlockCopy(data1, 0, ret, 0, data1.Length);
-            Buffer.BlockCopy(data2, 0, ret, data1.Length, data2.Length);
-            Buffer.BlockCopy(data3, 0, ret, data1.Length + data2.Length, data3.Length);
-
-            return ret;
+            return Read(dn, 0, (dn.MaxBlkId + 1) * (dn.DataBlkSizeSec * 512));
         }
     }
 
@@ -64,14 +125,14 @@ namespace ZfsSharp
     {
         public const int OBJSET_PHYS_SIZE = 2048;
 
-        public dnode_phys_t os_meta_dnode;
-        public zil_header_t os_zil_header;
-        public dmu_objset_type_t os_type;
-        public ulong os_flags;
+        public dnode_phys_t MetaDnode;
+        public zil_header_t ZilHeader;
+        public dmu_objset_type_t Type;
+        public ulong Flags;
         fixed byte os_pad[OBJSET_PHYS_SIZE - (1 << dnode_phys_t.DNODE_SHIFT) * 3 -
             zil_header_t.SIZE - sizeof(ulong) * 2];
-        public dnode_phys_t os_userused_dnode;
-        public dnode_phys_t os_groupused_dnode;
+        public dnode_phys_t UserUsedDnode;
+        public dnode_phys_t GroupUsedDnode;
     }
 
     enum dmu_objset_type_t : long
@@ -258,14 +319,11 @@ namespace ZfsSharp
         public short DataBlkSizeSec;
         [FieldOffset(9)]
         public short BonusLen;
-        //fixed byte Pad2[4];
 
         [FieldOffset(0x10)]
-        public UInt64 MaxBlkId;
+        public long MaxBlkId;
         [FieldOffset(0x18)]
         public UInt64 Used;
-
-        //fixed UInt64 Pad3[4];
 
         [FieldOffset(0x40)]
         public blkptr_t blkptr1;
@@ -278,6 +336,23 @@ namespace ZfsSharp
         public fixed byte Bonus[DN_MAX_BONUSLEN];
         [FieldOffset(0x180)]
         public blkptr_t Spill;
+
+        public blkptr_t GetBlkptr(long ndx)
+        {
+            if (ndx > NBlkPtrs)
+                throw new ArgumentOutOfRangeException();
+            switch (ndx)
+            {
+                case 0:
+                    return blkptr1;
+                case 1:
+                    return blkptr3;
+                case 2:
+                    return blkptr3;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+        }
     }
 
 }
