@@ -19,8 +19,6 @@ namespace ZfsSharp
             Type t = typeof(T);
             int bonusOffset = (dn.NBlkPtrs - 1) * sizeof(blkptr_t);
             int bonusSize = dnode_phys_t.DN_MAX_BONUSLEN - bonusOffset;
-            if ((dn.Flags & DnodeFlags.SpillBlkptr) != 0)
-                bonusSize -= sizeof(blkptr_t);
 
             if (Marshal.SizeOf(t) > bonusSize)
                 throw new ArgumentOutOfRangeException();
@@ -32,8 +30,6 @@ namespace ZfsSharp
         {
             int bonusOffset = (dn.NBlkPtrs - 1) * sizeof(blkptr_t);
             int bonusSize = dnode_phys_t.DN_MAX_BONUSLEN - bonusOffset;
-            if ((dn.Flags & DnodeFlags.SpillBlkptr) != 0)
-                bonusSize -= sizeof(blkptr_t);
 
             byte[] bonus = new byte[bonusSize];
             Marshal.Copy(new IntPtr(dn.Bonus + bonusOffset), bonus, 0, bonusSize);
@@ -59,7 +55,7 @@ namespace ZfsSharp
             List<blkptr_t> dataBlockPtrs = new List<blkptr_t>();
             for (long i = offset; i < (offset + size); i += blockSize)
             {
-                long blockId = offset / blockSize;
+                long blockId = i / blockSize;
                 dataBlockPtrs.Add(GetBlock(ref dn, blockId));
             }
 
@@ -339,14 +335,14 @@ namespace ZfsSharp
 
         public blkptr_t GetBlkptr(long ndx)
         {
-            if (ndx > NBlkPtrs)
+            if (ndx >= NBlkPtrs)
                 throw new ArgumentOutOfRangeException();
             switch (ndx)
             {
                 case 0:
                     return blkptr1;
                 case 1:
-                    return blkptr3;
+                    return blkptr2;
                 case 2:
                     return blkptr3;
                 default:
