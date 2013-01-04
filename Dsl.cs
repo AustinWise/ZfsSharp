@@ -3,12 +3,73 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Runtime.InteropServices;
+using System.IO;
 
 namespace ZfsSharp
 {
     class Dsl
     {
+        const string ROOT_DATASET = "root_dataset";
+        const string CONFIG = "config";
 
+        objset_phys_t mMos;
+        Dictionary<string, long> mObjDir;
+        NvList mConfig;
+        Zap mZap;
+        Dmu mDmu;
+        Zio mZio;
+
+
+        public Dsl(blkptr_t rootbp, Zap zap, Dmu dmu, Zio zio)
+        {
+            mZap = zap;
+            mDmu = dmu;
+            mZio = zio;
+
+            mMos = zio.Get<objset_phys_t>(rootbp);
+
+            dnode_phys_t objectDirectory = dmu.ReadFromObjectSet(mMos, 1);
+            mObjDir = zap.GetDirectoryEntries(objectDirectory);
+
+            var configDn = dmu.ReadFromObjectSet(mMos, mObjDir[CONFIG]);
+            mConfig = new NvList(new MemoryStream(dmu.Read(configDn)));
+        }
+
+        public Zpl GetDataset(long objid)
+        {
+            return new Zpl(mMos, objid, mZap, mDmu, mZio);
+        }
+
+        public Zpl GetRootDataSet()
+        {
+            return new Zpl(mMos, mObjDir[ROOT_DATASET], mZap, mDmu, mZio);
+        }
+
+        public Dictionary<string, long> ListDataSet()
+        {
+            var dic = new Dictionary<string, long>();
+            listDataSetName(mObjDir[ROOT_DATASET], mConfig.Get<string>("name"), dic);
+            return dic;
+        }
+
+        void listDataSetName(long objectId, string nameBase, Dictionary<string, long> dic)
+        {
+            dic.Add(nameBase, objectId);
+
+            var rootDslObj = mDmu.ReadFromObjectSet(mMos, objectId);
+            dsl_dir_phys_t dslDir = mDmu.GetBonus<dsl_dir_phys_t>(rootDslObj);
+
+            var childZapObjid = dslDir.child_dir_zapobj;
+            if (childZapObjid == 0)
+                return;
+
+            var children = mZap.GetDirectoryEntries(mDmu.ReadFromObjectSet(mMos, childZapObjid));
+
+            foreach (var kvp in children)
+            {
+                listDataSetName(kvp.Value, nameBase + "/" + kvp.Key, dic);
+            }
+        }
     }
     enum dd_used_t
     {
@@ -28,7 +89,7 @@ namespace ZfsSharp
         public long head_dataset_obj;
         public ulong parent_obj;
         public ulong origin_obj;
-        public ulong child_dir_zapobj;
+        public long child_dir_zapobj;
         /*
          * how much space our children are accounting for; for leaf
          * datasets, == physical space used by fs + snaps
@@ -40,7 +101,7 @@ namespace ZfsSharp
         public ulong quota;
         /* Administrative reservation setting */
         public ulong reserved;
-        public ulong props_zapobj;
+        public long props_zapobj;
         public ulong deleg_zapobj; /* dataset delegation permissions */
         public ulong flags;
         public fixed ulong used_breakdown[DD_USED_NUM];

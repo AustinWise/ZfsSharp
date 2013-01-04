@@ -27,8 +27,8 @@ namespace ZfsSharp
 
         unsafe static void Main(string[] args)
         {
-            var vhd = new VhdHardDisk(@"D:\VPC\SmartOs\SmartOs.vhd");
-            //var vhd = new VhdHardDisk(@"d:\VPC\SmartOs3\SmartOs3.vhd");
+            //var vhd = new VhdHardDisk(@"D:\VPC\SmartOs\SmartOs.vhd");
+            var vhd = new VhdHardDisk(@"d:\VPC\SmartOs3\SmartOs3.vhd");
             var gpt = new GptHardDrive(vhd);
 
             List<uberblock_t> blocks = new List<uberblock_t>();
@@ -57,50 +57,46 @@ namespace ZfsSharp
             var zio = new Zio(new[] { dev });
             var dmu = new Dmu(zio);
             var zap = new Zap(dmu);
+            var dsl = new Dsl(ub.rootbp, zap, dmu, zio);
 
-            var rootbp = ub.rootbp;
+            var rootZpl = dsl.GetRootDataSet();
+            var fileContents = Encoding.ASCII.GetString(rootZpl.GetFileContents("/currbooted"));
+            //var fileContents2 = Encoding.ASCII.GetString(rootZpl.GetFileContents("/global/asdf"));
 
-            objset_phys_t mos = zio.Get<objset_phys_t>(rootbp);
+            var root = rootZpl.Root;
+            var children = root.GetChildren().ToArray();
 
-            dnode_phys_t objectDirectory = dmu.ReadFromObjectSet(mos, 1);
-            var objDir = zap.Parse(objectDirectory);
+            Console.WriteLine();
 
-            var configDn = dmu.ReadFromObjectSet(mos, objDir[CONFIG]);
-            var confginNv = new NvList(new MemoryStream(dmu.Read(configDn)));
-
-            var rootDslObj = dmu.ReadFromObjectSet(mos, objDir[ROOT_DATASET]);
-            var rootDsl = dmu.GetBonus<dsl_dir_phys_t>(rootDslObj);
-
-            var rootDataSetObj = dmu.ReadFromObjectSet(mos, rootDsl.head_dataset_obj);
-            var rootDataSet = dmu.GetBonus<dsl_dataset_phys_t>(rootDataSetObj);
-
-            var rootZfs = zio.Get<objset_phys_t>(rootDataSet.bp);
-            var rootZfaObjDir = zap.Parse(dmu.ReadFromObjectSet(rootZfs, 1));
-            if (rootZfaObjDir["VERSION"] != 5)
-                throw new NotSupportedException();
-
-            var saAttrsDn = dmu.ReadFromObjectSet(rootZfs, rootZfaObjDir["SA_ATTRS"]);
-            var saAttrs = zap.Parse(saAttrsDn);
-            var saLayouts = zap.Parse(dmu.ReadFromObjectSet(rootZfs, saAttrs["LAYOUTS"]));
-
-
-            var rootDirDnode = dmu.ReadFromObjectSet(rootZfs, rootZfaObjDir["ROOT"]);
-            var rootSaHeader = dmu.GetBonus<sa_hdr_phys_t>(rootDirDnode);
-            var rootDirContents = zap.Parse(rootDirDnode);
-
-            var fileId = rootDirContents["currbooted"];
-            var fileDn = dmu.ReadFromObjectSet(rootZfs, fileId);
-            var fileSa = dmu.GetBonus<sa_hdr_phys_t>(fileDn);
-            var bytes = Encoding.ASCII.GetString(dmu.Read(fileDn));
+            foreach (var ds in dsl.ListDataSet())
+            {
+                //TODO: a better way of detecting the type of dataset
+                if (ds.Key.Contains("$") || ds.Key.Contains("/dump") || ds.Key.Contains("/swap"))
+                    continue;
+                var zpl = dsl.GetDataset(ds.Value);
+                printContent(ds.Key, zpl.Root);
+            }
 
             /*
              * TODO:
              *  DSL
-             *  Fat ZAP
+             *  Complete Fat ZAP
              *  ZPL
              */
 
             Console.WriteLine();
+        }
+
+        static void printContent(string namePrefix, Zpl.ZfsItem item)
+        {
+            Console.WriteLine(namePrefix + item.FullPath);
+            var dir = item as Zpl.ZfsDirectory;
+            if (dir == null)
+                return;
+            foreach (var d in dir.GetChildren())
+            {
+                printContent(namePrefix, d);
+            }
         }
 
         public static T ToStruct<T>(byte[] bytes) where T : struct

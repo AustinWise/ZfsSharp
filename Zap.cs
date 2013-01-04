@@ -15,7 +15,23 @@ namespace ZfsSharp
             mDmu = dmu;
         }
 
-        unsafe public Dictionary<string, long> Parse(dnode_phys_t dn)
+        unsafe public Dictionary<string, object> Parse(dnode_phys_t dn)
+        {
+            var zapBytes = mDmu.Read(dn);
+            fixed (byte* ptr = zapBytes)
+            {
+                mzap_phys_t zapHeader = (mzap_phys_t)Marshal.PtrToStructure(new IntPtr(ptr), typeof(mzap_phys_t));
+
+                if (zapHeader.BlockType == ZapBlockType.MICRO)
+                    return ParseMicro(ptr, zapBytes.Length).ToDictionary(d => d.Key, d => (object)d.Value);
+                else if (zapHeader.BlockType == ZapBlockType.HEADER)
+                    return ParseFat(dn, ptr, zapBytes.Length);
+                else
+                    throw new NotSupportedException();
+            }
+        }
+
+        unsafe public Dictionary<string, long> GetDirectoryEntries(dnode_phys_t dn)
         {
             var zapBytes = mDmu.Read(dn);
             fixed (byte* ptr = zapBytes)
@@ -25,7 +41,7 @@ namespace ZfsSharp
                 if (zapHeader.BlockType == ZapBlockType.MICRO)
                     return ParseMicro(ptr, zapBytes.Length);
                 else if (zapHeader.BlockType == ZapBlockType.HEADER)
-                    return ParseFat(dn, ptr, zapBytes.Length);
+                    throw new NotImplementedException();
                 else
                     throw new NotSupportedException();
             }
@@ -46,32 +62,176 @@ namespace ZfsSharp
             return ret;
         }
 
-        unsafe Dictionary<string, long> ParseFat(dnode_phys_t dn, byte* ptr, int length)
+        unsafe Dictionary<string, object> ParseFat(dnode_phys_t dn, byte* ptr, int length)
         {
+            var ret = new Dictionary<string, object>();
             var header = Program.ToStruct<zap_phys_t>(ptr, 0, length);
+            var bs = highBit(dn.DataBlkSizeSec * 512);
+
             if (header.zap_block_type != ZapBlockType.HEADER)
                 throw new Exception();
             if (header.zap_magic != ZAP_MAGIC)
                 throw new Exception();
             if (header.zap_ptrtbl.zt_numblks != 0)
-                throw new NotImplementedException();
+                throw new NotImplementedException("Only embedded pointer tables currently supported.");
 
+            //read the pointer table
             long startIndx = (1 << header.EmbeddedPtrtblShift);
             byte* end = ptr + length;
+            var blkIds = new Dictionary<long, bool>();
             for (long i = 0; i < (1L << (int)header.zap_ptrtbl.zt_shift); i++)
             {
-                ulong* blkIdP = (ulong*)ptr + startIndx + i;
+                long* blkIdP = (long*)ptr + startIndx + i;
                 if (blkIdP >= end)
                     throw new Exception();
                 var blkId = *blkIdP;
-                if (blkId != 0 )
-                    Console.WriteLine();
+                if (blkId != 0)
+                    blkIds[blkId] = true;
             }
 
-            var leaf = Program.ToStruct<zap_leaf_header>(ptr, (dn.DataBlkSizeSec * 512), length);
+            //read the leaves
+            foreach (var blkid in blkIds.Keys)
+            {
+                var offset = blkid << bs;
+                var leaf = Program.ToStruct<zap_leaf_header>(ptr, offset, length);
+                if (leaf.lh_magic != ZAP_LEAF_MAGIC)
+                    throw new Exception();
+                int numHashEntries = 1 << (bs - 5);
+                int numChunks = ((1 << bs) - 2 * numHashEntries) / ZAP_LEAF_CHUNKSIZE - 2;
 
-            throw new NotImplementedException();
+                var hashEntries = new Dictionary<ushort, bool>();
+
+                offset += Marshal.SizeOf(typeof(zap_leaf_header));
+                for (int i = 0; i < numHashEntries; i++)
+                {
+                    ushort* hashPtr = (ushort*)(ptr + offset);
+                    if (hashPtr > end)
+                        throw new Exception();
+                    var loc = *hashPtr;
+                    if (loc != 0xffff)
+                        hashEntries[loc] = true;
+                    offset += 2;
+                }
+
+                foreach (var hashLoc in hashEntries.Keys)
+                {
+                    var chunk = Program.ToStruct<zap_leaf_chunk_t>(ptr, offset + sizeof(zap_leaf_chunk_t) * hashLoc, length);
+                    switch (chunk.Type)
+                    {
+                        case zap_chunk_type_t.ZAP_CHUNK_ENTRY:
+                            var entry = chunk.l_entry;
+                            var nameBytes = GetArray<byte>(ptr, length, offset, entry.le_name_chunk, entry.le_name_numints);
+                            var nameLength = nameBytes.Length;
+                            if (nameBytes[nameLength - 1] == 0)
+                                nameLength--;
+                            var nameStr = Encoding.ASCII.GetString(nameBytes, 0, nameLength);
+                            var valueArray = GetValueArray(ptr, length, offset, entry);
+                            ret.Add(nameStr, valueArray);
+                            break;
+                        case zap_chunk_type_t.ZAP_CHUNK_FREE:
+                        case zap_chunk_type_t.ZAP_CHUNK_ARRAY:
+                        default:
+                            throw new NotImplementedException();
+                    }
+                }
+            }
+
+            return ret;
         }
+
+        unsafe static object GetValueArray(byte* ptr, long ptrLength, long chunkTableOffset, zap_leaf_entry entry)
+        {
+            switch (entry.le_value_intlen)
+            {
+                case 1:
+                    return GetArray<byte>(ptr, ptrLength, chunkTableOffset, entry.le_value_chunk, entry.le_value_numints);
+                case 2:
+                    return GetArray<short>(ptr, ptrLength, chunkTableOffset, entry.le_value_chunk, entry.le_value_numints);
+                case 4:
+                    return GetArray<int>(ptr, ptrLength, chunkTableOffset, entry.le_value_chunk, entry.le_value_numints);
+                case 8:
+                    return GetArray<long>(ptr, ptrLength, chunkTableOffset, entry.le_value_chunk, entry.le_value_numints);
+                default:
+                    throw new NotSupportedException();
+            }
+        }
+
+        /// <typeparam name="T">Must be an interget</typeparam>
+        unsafe static T[] GetArray<T>(byte* ptr, long ptrLength, long chunkTableOffset, int chunkEntryNdx, int totalEntries) where T : struct
+        {
+            var byteList = new List<byte>();
+            int itemSize = Marshal.SizeOf(typeof(T));
+            GetArray(ptr, ptrLength, chunkTableOffset, chunkEntryNdx, totalEntries * itemSize, byteList);
+            var byteArray = byteList.ToArray();
+
+            if (typeof(T) == typeof(byte))
+                return (T[])(object)byteArray;
+            if (typeof(T) != typeof(int) && typeof(T) != typeof(short) && typeof(T) != typeof(long))
+                throw new NotSupportedException();
+
+            for (int itemNdx = 0; itemNdx < totalEntries; itemNdx++)
+            {
+                int itemOffset = itemNdx * itemSize;
+                //do byteswap, as these are always big endian numbers
+                for (int byteNdx = 0; byteNdx < itemSize / 2; byteNdx++)
+                {
+                    int lowerNdx = itemOffset + byteNdx;
+                    int higherNdx = itemOffset + itemSize - byteNdx - 1;
+                    byte b = byteArray[lowerNdx];
+                    byteArray[lowerNdx] = byteArray[higherNdx];
+                    byteArray[higherNdx] = b;
+                }
+            }
+
+            var ret = new List<T>();
+            fixed (byte* bytes = byteArray)
+            {
+                for (int itemNdx = 0; itemNdx < totalEntries; itemNdx++)
+                {
+                    ret.Add(Program.ToStruct<T>(bytes, itemNdx * itemSize, byteArray.Length));
+                }
+            }
+            return ret.ToArray();
+        }
+
+        unsafe static void GetArray(byte* ptr, long ptrLength, long chunkTableOffset, int chunkEntryNdx, int totalEntries, List<byte> list)
+        {
+            if (totalEntries <= 0)
+                throw new ArgumentOutOfRangeException();
+            if (chunkEntryNdx == CHAIN_END)
+                throw new ArgumentOutOfRangeException();
+
+            var chunk = Program.ToStruct<zap_leaf_chunk_t>(ptr, chunkTableOffset + sizeof(zap_leaf_chunk_t) * chunkEntryNdx, ptrLength);
+            if (chunk.Type != zap_chunk_type_t.ZAP_CHUNK_ARRAY)
+                throw new Exception();
+            var array = chunk.l_array;
+
+            int entriesToRead = ZAP_LEAF_ARRAY_BYTES;
+            if (entriesToRead > totalEntries)
+                entriesToRead = totalEntries;
+            for (int i = 0; i < entriesToRead; i++)
+            {
+                var item = *(array.la_array + i);
+                list.Add(item);
+            }
+            totalEntries -= entriesToRead;
+            if (totalEntries != 0)
+            {
+                GetArray(ptr, ptrLength, chunkTableOffset, array.la_next, totalEntries, list);
+            }
+        }
+
+        static int highBit(long some)
+        {
+            for (int i = 63; i >= 0; i--)
+            {
+                if (((1L << i) & some) != 0)
+                    return i;
+            }
+            throw new Exception();
+        }
+
+        //ulong hashZap(ref zap_phys_t header
 
         enum ZapBlockType : long
         {
@@ -86,11 +246,14 @@ namespace ZfsSharp
         const long MZAP_MAX_BLKSZ = (1 << MZAP_MAX_BLKSHIFT);
 
         const ulong ZAP_MAGIC = 0x2F52AB2ABL;
+        const uint ZAP_LEAF_MAGIC = 0x2AB1EAF;
 
         const long ZAP_NEED_CD = (-1U);
 
         const int ZAP_LEAF_CHUNKSIZE = 24;
         const int ZAP_LEAF_ARRAY_BYTES = (ZAP_LEAF_CHUNKSIZE - 3);
+
+        const int CHAIN_END = 0xffff;
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         unsafe struct mzap_ent_phys_t
@@ -104,11 +267,10 @@ namespace ZfsSharp
             {
                 get
                 {
-                    //fixed (mzap_ent_phys_t* pppp = &this)
-                    //{
-                    //}
                     fixed (byte* ptr = name)
                     {
+                        if (*ptr == 0)
+                            return null;
                         string ret = Marshal.PtrToStringAnsi(new IntPtr(ptr), MZAP_NAME_LEN);
                         int zeroNdx = ret.IndexOf('\0');
                         if (zeroNdx != -1)
@@ -122,6 +284,21 @@ namespace ZfsSharp
             {
                 return string.Format("{0}: {1}", Name, Value);
             }
+        }
+
+        [Flags]
+        enum zap_flags_t : ulong
+        {
+            None = 0,
+            /* Use 64-bit hash value (serialized cursors will always use 64-bits) */
+            ZAP_FLAG_HASH64 = 1 << 0,
+            /* Key is binary, not string (zap_add_uint64() can be used) */
+            ZAP_FLAG_UINT64_KEY = 1 << 1,
+            /*
+             * First word of key (which must be an array of uint64) is
+             * already randomly distributed.
+             */
+            ZAP_FLAG_PRE_HASHED_KEY = 1 << 2,
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -147,7 +324,7 @@ namespace ZfsSharp
             public long zap_num_entries;	/* number of entries */
             public ulong zap_salt;		/* salt to stir into hash function */
             public ulong zap_normflags;		/* flags for u8_textprep_str() */
-            public ulong zap_flags;		/* zap_flags_t */
+            public zap_flags_t zap_flags;		/* zap_flags_t */
             /*
              * This structure is followed by padding, and then the embedded
              * pointer table.  The embedded pointer table takes up second
@@ -196,7 +373,7 @@ namespace ZfsSharp
             public ZapBlockType lh_block_type;		/* zbt_leaf */
             ulong lh_pad1;
             ulong lh_prefix;		/* hash prefix of this leaf */
-            uint lh_magic;		/* zap_leaf_magic */
+            public uint lh_magic;		/* zap_leaf_magic */
             ushort lh_nfree;		/* number free chunks */
             ushort lh_nentries;		/* number of entries */
             ushort lh_prefix_len;		/* num bits used to id this */
@@ -225,31 +402,31 @@ namespace ZfsSharp
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         struct zap_leaf_entry
         {
-            zap_chunk_type_t le_type; 		/* always ZAP_CHUNK_ENTRY */
-            byte le_value_intlen;	/* size of value's ints */
-            ushort le_next;		/* next entry in hash chain */
-            ushort le_name_chunk;		/* first chunk of the name */
-            ushort le_name_numints;	/* ints in name (incl null) */
-            ushort le_value_chunk;	/* first chunk of the value */
-            ushort le_value_numints;	/* value length in ints */
-            uint le_cd;			/* collision differentiator */
-            ulong le_hash;		/* hash value of the name */
+            public zap_chunk_type_t le_type; 		/* always ZAP_CHUNK_ENTRY */
+            public byte le_value_intlen;	/* size of value's ints */
+            public ushort le_next;		/* next entry in hash chain */
+            public ushort le_name_chunk;		/* first chunk of the name */
+            public ushort le_name_numints;	/* ints in name (incl null) */
+            public ushort le_value_chunk;	/* first chunk of the value */
+            public ushort le_value_numints;	/* value length in ints */
+            public uint le_cd;			/* collision differentiator */
+            public ulong le_hash;		/* hash value of the name */
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         unsafe struct zap_leaf_array
         {
-            zap_chunk_type_t la_type;		/* always ZAP_CHUNK_ARRAY */
-            fixed byte la_array[ZAP_LEAF_ARRAY_BYTES];
-            ushort la_next;		/* next blk or CHAIN_END */
+            public zap_chunk_type_t la_type;		/* always ZAP_CHUNK_ARRAY */
+            public fixed byte la_array[ZAP_LEAF_ARRAY_BYTES];
+            public ushort la_next;		/* next blk or CHAIN_END */
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         unsafe struct zap_leaf_free
         {
-            zap_chunk_type_t lf_type;		/* always ZAP_CHUNK_FREE */
-            fixed byte lf_pad[ZAP_LEAF_ARRAY_BYTES];
-            ushort lf_next;	/* next in free list, or CHAIN_END */
+            public zap_chunk_type_t lf_type;		/* always ZAP_CHUNK_FREE */
+            public fixed byte lf_pad[ZAP_LEAF_ARRAY_BYTES];
+            public ushort lf_next;	/* next in free list, or CHAIN_END */
         }
     }
 }
