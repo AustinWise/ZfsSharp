@@ -94,11 +94,12 @@ namespace ZfsSharp.HardDisk
 
             mFile = MemoryMappedFile.CreateFromFile(path, FileMode.Open);
 
-            VhdHeader head;
+            byte[] headerBytes = new byte[Marshal.SizeOf(typeof(VhdHeader))];
             using (var ac = mFile.CreateViewAccessor(fi.Length - 512, 512))
             {
-                ac.Read(0, out head);
+                ac.ReadArray(0, headerBytes, 0, headerBytes.Length);
             }
+            VhdHeader head = Program.ToStructByteSwap<VhdHeader>(headerBytes);
 
             if (head.DataOffset != 0xffffffffffffffff)
             {

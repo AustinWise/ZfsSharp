@@ -6,6 +6,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using ZfsSharp.HardDisk;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace ZfsSharp
 {
@@ -118,6 +120,60 @@ namespace ZfsSharp
             if (offset + Marshal.SizeOf(t) > ptrLength)
                 throw new ArgumentOutOfRangeException();
             return (T)Marshal.PtrToStructure(new IntPtr(ptr + offset), t);
+        }
+
+        public static T ToStructByteSwap<T>(byte[] bytes) where T : struct
+        {
+            var copy = new byte[bytes.Length];
+            Buffer.BlockCopy(bytes, 0, copy, 0, copy.Length);
+            foreach (var f in typeof(T).GetFields(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance))
+            {
+                ByteSwapField<T>(f.Name, f.FieldType, copy);
+            }
+            return ToStruct<T>(copy);
+        }
+
+        static Dictionary<Type, int> sStructSize = new Dictionary<Type, int>()
+        {
+            { typeof(byte), 1 },
+            { typeof(sbyte), 1 },
+            { typeof(short), 2 },
+            { typeof(ushort), 2 },
+            { typeof(int), 4 },
+            { typeof(uint), 4 },
+            { typeof(long), 8 },
+            { typeof(ulong), 8 },
+        };
+
+        unsafe static void ByteSwapField<T>(string fieldName, Type fieldType, byte[] byteArray) where T : struct
+        {
+            int itemSize;
+            if (!sStructSize.TryGetValue(fieldType, out itemSize))
+            {
+                if (fieldType.IsEnum)
+                {
+                    var realType = fieldType.GetEnumUnderlyingType();
+                    ByteSwapField<T>(fieldName, realType, byteArray);
+                    return;
+                }
+                else if (fieldType.GetCustomAttributes(typeof(UnsafeValueTypeAttribute), false).Length != 0)
+                {
+                    return;
+                    //ignore fixed size buffers
+                }
+                else
+                    throw new NotSupportedException();
+            }
+
+            var itemOffset = Marshal.OffsetOf(typeof(T), fieldName).ToInt32();
+            for (int byteNdx = 0; byteNdx < itemSize / 2; byteNdx++)
+            {
+                int lowerNdx = itemOffset + byteNdx;
+                int higherNdx = itemOffset + itemSize - byteNdx - 1;
+                byte b = byteArray[lowerNdx];
+                byteArray[lowerNdx] = byteArray[higherNdx];
+                byteArray[higherNdx] = b;
+            }
         }
 
         public const int SPA_MINBLOCKSHIFT = 9;

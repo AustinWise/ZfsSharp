@@ -52,6 +52,7 @@ namespace ZfsSharp.HardDisk
 
         public byte[] ReadBytes(long offset, long count)
         {
+            checkOffsets(offset, count);
             return mHdd.ReadBytes(mOffset + offset, count);
         }
 
