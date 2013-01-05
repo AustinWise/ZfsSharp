@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Collections;
 
 namespace ZfsSharp.HardDisk
 {
@@ -78,7 +79,7 @@ namespace ZfsSharp.HardDisk
         unsafe struct DynamicHeader
         {
             fixed byte Cookie[8];
-            public long DataOffset;
+            public ulong DataOffset;
             public long TableOffset;
             public int HeaderVersion;
             public int MaxTableEntries;
@@ -132,6 +133,8 @@ namespace ZfsSharp.HardDisk
             VhdHeader head = GetHeader(hdd);
             if (head.CookieStr != "conectix")
                 throw new Exception();
+            if (head.FileFormatVersion != 0x00010000)
+                throw new Exception();
 
             if (head.DiskType == DiskType.Fixed)
             {
@@ -139,7 +142,7 @@ namespace ZfsSharp.HardDisk
             }
             else if (head.DiskType == DiskType.Dynamic)
             {
-                throw new NotImplementedException();
+                return new DynamicVhd(hdd);
             }
             else
             {
@@ -180,8 +183,12 @@ namespace ZfsSharp.HardDisk
             }
         }
 
-        class DynamicVhd
+        class DynamicVhd : IHardDisk
         {
+            long mSize;
+            IHardDisk mHdd;
+            int mBlockSize;
+            int[] mBat;
             public DynamicVhd(IHardDisk hdd)
             {
                 VhdHeader head = GetHeader(hdd);
@@ -189,6 +196,91 @@ namespace ZfsSharp.HardDisk
                 DynamicHeader dyhead = Program.ToStructByteSwap<DynamicHeader>(hdd.ReadBytes(head.DataOffset, dySize));
                 if (dyhead.CookieStr != "cxsparse")
                     throw new Exception();
+                if (dyhead.HeaderVersion != 0x00010000)
+                    throw new NotSupportedException();
+
+                mHdd = hdd;
+                mSize = head.CurrentSize;
+                mBlockSize = dyhead.BlockSize;
+
+                int numberOfBlocks = (int)(mSize / mBlockSize);
+                if (numberOfBlocks > dyhead.MaxTableEntries)
+                    throw new Exception();
+                mBat = new int[numberOfBlocks];
+
+                var bat = mHdd.ReadBytes(dyhead.TableOffset, numberOfBlocks * 4);
+
+                for (int i = 0; i < numberOfBlocks; i++)
+                {
+                    Program.ByteSwap(typeof(int), bat, i * 4);
+                    mBat[i] = Program.ToStruct<int>(bat, i * 4);
+                }
+
+                Console.WriteLine();
+            }
+
+            public void Get<T>(long offset, out T @struct) where T : struct
+            {
+                @struct = Program.ToStruct<T>(ReadBytes(offset, Marshal.SizeOf(typeof(T))));
+            }
+
+            public byte[] ReadBytes(long offset, long size)
+            {
+                CheckOffsets(offset, size, mSize);
+
+                var blockOffsets = new List<long>();
+                for (long i = offset; i < (offset + size); i += mBlockSize)
+                {
+                    long blockId = i / mBlockSize;
+                    long blockOffset = mBat[blockId];
+                    if (blockOffset == 0xffffffffL)
+                        throw new Exception("Missing block.");
+                    blockOffsets.Add(blockOffset * 512);
+                }
+
+                var ret = new byte[size];
+                long retNdx = 0;
+                for (int i = 0; i < blockOffsets.Count; i++)
+                {
+                    long startNdx, cpyCount;
+                    Program.GetMultiBlockCopyOffsets(i, blockOffsets.Count, mBlockSize, offset, size, out startNdx, out cpyCount);
+
+                    if (retNdx > Int32.MaxValue || startNdx > Int32.MaxValue || cpyCount > Int32.MaxValue)
+                        throw new NotImplementedException("No support for blocks this big yet.");
+
+                    var bytes = readBlock(blockOffsets[i]);
+                    Buffer.BlockCopy(bytes, (int)startNdx, ret, (int)retNdx, (int)cpyCount);
+                    retNdx += mBlockSize;
+                }
+
+                return ret;
+            }
+
+            byte[] readBlock(long blockOffset)
+            {
+                const int SECTOR_SIZE = 512;
+                var numberOfSectors = mBlockSize / SECTOR_SIZE;
+                var ba = new BitArray(mHdd.ReadBytes(blockOffset, numberOfSectors / 8));
+
+                blockOffset += numberOfSectors / 8;
+
+                var ret = new byte[mBlockSize];
+                for (int i = 0; i < numberOfSectors; i++)
+                {
+                    if (ba[i])
+                    {
+                        var temp = mHdd.ReadBytes(blockOffset + i * SECTOR_SIZE, SECTOR_SIZE);
+                        Buffer.BlockCopy(temp, 0, ret, i * SECTOR_SIZE, SECTOR_SIZE);
+                    }
+                    else
+                        Console.WriteLine();
+                }
+                return ret;
+            }
+
+            public long Length
+            {
+                get { return mSize; }
             }
         }
     }

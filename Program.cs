@@ -146,18 +146,24 @@ namespace ZfsSharp
             { typeof(Guid), 16 }, //TODO: determine if a GUID should really be byte swapped this way
         };
 
-        unsafe static void ByteSwapField<T>(string fieldName, Type fieldType, byte[] byteArray) where T : struct
+        static void ByteSwapField<T>(string fieldName, Type fieldType, byte[] byteArray) where T : struct
+        {
+            var itemOffset = Marshal.OffsetOf(typeof(T), fieldName).ToInt32();
+            ByteSwap(fieldType, byteArray, itemOffset);
+        }
+
+        public static void ByteSwap(Type type, byte[] byteArray, int itemOffset)
         {
             int itemSize;
-            if (!sStructSize.TryGetValue(fieldType, out itemSize))
+            if (!sStructSize.TryGetValue(type, out itemSize))
             {
-                if (fieldType.IsEnum)
+                if (type.IsEnum)
                 {
-                    var realType = fieldType.GetEnumUnderlyingType();
-                    ByteSwapField<T>(fieldName, realType, byteArray);
+                    var realType = type.GetEnumUnderlyingType();
+                    ByteSwap(realType, byteArray, itemOffset);
                     return;
                 }
-                else if (fieldType.GetCustomAttributes(typeof(UnsafeValueTypeAttribute), false).Length != 0)
+                else if (type.GetCustomAttributes(typeof(UnsafeValueTypeAttribute), false).Length != 0)
                 {
                     return;
                     //ignore fixed size buffers
@@ -166,7 +172,6 @@ namespace ZfsSharp
                     throw new NotSupportedException();
             }
 
-            var itemOffset = Marshal.OffsetOf(typeof(T), fieldName).ToInt32();
             for (int byteNdx = 0; byteNdx < itemSize / 2; byteNdx++)
             {
                 int lowerNdx = itemOffset + byteNdx;
@@ -174,6 +179,21 @@ namespace ZfsSharp
                 byte b = byteArray[lowerNdx];
                 byteArray[lowerNdx] = byteArray[higherNdx];
                 byteArray[higherNdx] = b;
+            }
+        }
+
+        public static void GetMultiBlockCopyOffsets(int blockNdx, int totalBlocks, long blockSize, long dataOffset, long dataSize, out long startNdx, out long cpyCount)
+        {
+            startNdx = 0;
+            cpyCount = blockSize;
+            if (blockNdx == 0)
+                startNdx += (int)(dataOffset % blockSize);
+            if (blockNdx == totalBlocks - 1)
+            {
+                cpyCount = (int)((dataOffset + dataSize) % blockSize);
+                if (cpyCount == 0)
+                    cpyCount = (int)blockSize;
+                cpyCount -= startNdx;
             }
         }
 

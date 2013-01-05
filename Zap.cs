@@ -184,14 +184,7 @@ namespace ZfsSharp
             {
                 int itemOffset = itemNdx * itemSize;
                 //do byteswap, as these are always big endian numbers
-                for (int byteNdx = 0; byteNdx < itemSize / 2; byteNdx++)
-                {
-                    int lowerNdx = itemOffset + byteNdx;
-                    int higherNdx = itemOffset + itemSize - byteNdx - 1;
-                    byte b = byteArray[lowerNdx];
-                    byteArray[lowerNdx] = byteArray[higherNdx];
-                    byteArray[higherNdx] = b;
-                }
+                Program.ByteSwap(typeof(T), byteArray, itemOffset);
             }
 
             var ret = new List<T>();
