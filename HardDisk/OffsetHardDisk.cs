@@ -39,17 +39,6 @@ namespace ZfsSharp.HardDisk
             mHdd.Get<T>(mOffset + offset, out @struct);
         }
 
-        public Stream GetStream(long offset, long size)
-        {
-            checkOffsets(offset, size);
-            return mHdd.GetStream(offset + mOffset, size);
-        }
-
-        public Stream GetStream()
-        {
-            return mHdd.GetStream(mOffset, mSize);
-        }
-
         public byte[] ReadBytes(long offset, long count)
         {
             checkOffsets(offset, count);

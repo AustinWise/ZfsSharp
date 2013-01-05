@@ -79,15 +79,6 @@ namespace ZfsSharp.HardDisk
             }
         }
 
-        public Stream GetStream(long offset, long size)
-        {
-            return mFile.CreateViewStream(offset, size);
-        }
-        public Stream GetStream()
-        {
-            return mFile.CreateViewStream(0, mSize);
-        }
-
         public VhdHardDisk(string path)
         {
             var fi = new FileInfo(path);

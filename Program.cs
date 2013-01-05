@@ -45,7 +45,7 @@ namespace ZfsSharp
             var ub = blocks.OrderByDescending(u => u.Txg).First();
 
             NvList nv;
-            using (var s = gpt.GetStream(16 << 10, 112 << 10))
+            using (var s = new MemoryStream(gpt.ReadBytes(16 << 10, 112 << 10)))
                 nv = new NvList(s);
             if (nv.Get<ulong>("version") != 5000)
             {

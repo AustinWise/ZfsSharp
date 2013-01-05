@@ -62,8 +62,9 @@ namespace ZfsSharp
             IHardDisk dev = mVdevs[dva.VDev];
 
             int physicalSize = ((int)blkptr.PSize + 1) * SECTOR_SIZE;
+            byte[] physicalBytes = dev.ReadBytes(dva.Offset << 9, physicalSize);
 
-            using (var s = dev.GetStream(dva.Offset << 9, physicalSize))
+            using (var s = new MemoryStream(physicalBytes))
             {
                 var chk = mChecksums[blkptr.Checksum].Calculate(s, physicalSize);
                 if (chk.word1 != blkptr.cksum.word1 ||
@@ -71,13 +72,6 @@ namespace ZfsSharp
                     chk.word3 != blkptr.cksum.word3 ||
                     chk.word4 != blkptr.cksum.word4)
                     throw new Exception();
-            }
-
-            byte[] physicalBytes;
-            using (var s = dev.GetStream(dva.Offset << 9, physicalSize))
-            {
-                var r = new BinaryReader(s);
-                physicalBytes = r.ReadBytes(physicalSize);
             }
 
             byte[] logicalBytes = new byte[((long)blkptr.LSize + 1) * SECTOR_SIZE];

@@ -11,9 +11,6 @@ namespace ZfsSharp
     {
         void Get<T>(long offset, out T @struct) where T : struct;
 
-        Stream GetStream(long offset, long size);
-        Stream GetStream();
-
         byte[] ReadBytes(long offset, long count);
 
         long Length { get; }

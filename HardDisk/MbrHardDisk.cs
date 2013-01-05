@@ -120,15 +120,6 @@ namespace ZfsSharp.HardDisk
             return mHdd.ReadBytes(mOffset + offset, count);
         }
 
-        public Stream GetStream(long offset, long size)
-        {
-            throw new NotImplementedException();
-        }
-        public Stream GetStream()
-        {
-            throw new NotImplementedException();
-        }
-
         public long Length
         {
             get { return mSize; }
