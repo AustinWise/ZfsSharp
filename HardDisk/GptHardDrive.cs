@@ -5,9 +5,9 @@ using System.Text;
 using System.Runtime.InteropServices;
 using System.IO;
 
-namespace ZfsSharp.HardDisk
+namespace ZfsSharp.HardDisks
 {
-    class GptHardDrive : IHardDisk
+    class GptHardDrive : OffsetHardDisk
     {
         readonly static Guid SolarisUsrPartitionId = new Guid("6A898CC3-1DD2-11B2-99A6-080020736631");
 
@@ -86,23 +86,18 @@ namespace ZfsSharp.HardDisk
             }
         }
 
-        private IHardDisk mHdd;
         private GptHeader mHeader;
         private PartitionEntry mPartition;
-        private long mOffset;
-        private long mSize;
 
-        public GptHardDrive(IHardDisk hdd)
+        public GptHardDrive(HardDisk hdd)
         {
-            mHdd = hdd;
-
             //check for MBR protective partition
             if (!MbrHardDisk.IsMbr(hdd))
                 throw new Exception("Not MBR.");
             if (MbrHardDisk.GetType(hdd, 0) != MbrPartitionType.GptProtective)
                 throw new Exception("Not GPT.");
 
-            mHdd.Get(SectorSize, out mHeader); //LBA 1
+            hdd.Get(SectorSize, out mHeader); //LBA 1
             if (mHeader.Signature != EfiMagic)
                 throw new Exception("Not a GPT.");
             if (mHeader.Revision != CurrentRevision)
@@ -120,7 +115,7 @@ namespace ZfsSharp.HardDisk
             List<PartitionEntry> parts = new List<PartitionEntry>();
             for (int i = 0; i < mHeader.NumberOfPartitions; i++)
             {
-                parts.Add(GetLba<PartitionEntry>(mHeader.StartingLbaOfPartitionEntries, i * mHeader.SizeOfPartitionEntry));
+                parts.Add(GetLba<PartitionEntry>(hdd, mHeader.StartingLbaOfPartitionEntries, i * mHeader.SizeOfPartitionEntry));
             }
 
             //TODO: don't hard code this
@@ -128,31 +123,15 @@ namespace ZfsSharp.HardDisk
             if (mPartition.Type != SolarisUsrPartitionId || mPartition.Name != "zfs")
                 throw new Exception("Not a ZFS partition.");
 
-            mOffset = SectorSize * mPartition.FirstLba;
-            mSize = SectorSize * (mPartition.LastLba - mPartition.FirstLba);
+            Init(hdd, SectorSize * mPartition.FirstLba, SectorSize * (mPartition.LastLba - mPartition.FirstLba));
         }
 
-        private T GetLba<T>(long absoluteLba, long extraOffset) where T : struct
+        private static T GetLba<T>(HardDisk hdd, long absoluteLba, long extraOffset) where T : struct
         {
             long byteOffset = absoluteLba * SectorSize + extraOffset;
             T ret;
-            mHdd.Get<T>(byteOffset, out ret);
+            hdd.Get<T>(byteOffset, out ret);
             return ret;
-        }
-
-        public void Get<T>(long offset, out T @struct) where T : struct
-        {
-            mHdd.Get<T>(mOffset + offset, out @struct);
-        }
-
-        public long Length
-        {
-            get { return mSize; }
-        }
-
-        public byte[] ReadBytes(long offset, long count)
-        {
-            return mHdd.ReadBytes(mOffset + offset, count);
         }
     }
 }

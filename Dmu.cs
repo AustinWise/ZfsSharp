@@ -66,11 +66,8 @@ namespace ZfsSharp
                 long startNdx, cpyCount;
                 Program.GetMultiBlockCopyOffsets(i, dataBlockPtrs.Count, blockSize, offset, size, out startNdx, out cpyCount);
 
-                if (retNdx > Int32.MaxValue || startNdx > Int32.MaxValue || cpyCount > Int32.MaxValue)
-                    throw new NotImplementedException("No support for blocks this big yet.");
-
                 var bytes = mZio.Read(dataBlockPtrs[i]);
-                Buffer.BlockCopy(bytes, (int)startNdx, ret, (int)retNdx, (int)cpyCount);
+                Program.LongBlockCopy(bytes, startNdx, ret, retNdx, cpyCount);
                 retNdx += blockSize;
             }
 

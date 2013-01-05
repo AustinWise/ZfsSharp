@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Collections;
 
-namespace ZfsSharp.HardDisk
+namespace ZfsSharp.HardDisks
 {
     static class VhdHardDisk
     {
@@ -116,19 +116,12 @@ namespace ZfsSharp.HardDisk
         }
         #endregion
 
-        static VhdHeader GetHeader(IHardDisk hdd)
+        static VhdHeader GetHeader(HardDisk hdd)
         {
             return Program.ToStructByteSwap<VhdHeader>(hdd.ReadBytes(hdd.Length - 512, 512));
         }
 
-        //TODO: move this to some sort of HDD base class
-        static void CheckOffsets(long offset, long size, long mySize)
-        {
-            if (offset < 0 || size <= 0 || offset + size > mySize)
-                throw new ArgumentOutOfRangeException();
-        }
-
-        public static IHardDisk Create(IHardDisk hdd)
+        public static HardDisk Create(HardDisk hdd)
         {
             VhdHeader head = GetHeader(hdd);
             if (head.CookieStr != "conectix")
@@ -150,46 +143,27 @@ namespace ZfsSharp.HardDisk
             }
         }
 
-        class FixedVhd : IHardDisk
+        class FixedVhd : OffsetHardDisk
         {
-            long mSize;
-            IHardDisk mHdd;
-
-            public FixedVhd(IHardDisk hdd)
+            public FixedVhd(HardDisk hdd)
             {
-                mHdd = hdd;
-                mSize = hdd.Length - 512;
+                long size = hdd.Length - 512;
                 var head = GetHeader(hdd);
 
-                if (head.CurrentSize != mSize)
+                if (head.CurrentSize != size)
                     throw new Exception();
-            }
 
-            public void Get<T>(long offset, out T @struct) where T : struct
-            {
-                CheckOffsets(offset, Marshal.SizeOf(typeof(T)), mSize);
-                mHdd.Get<T>(offset, out @struct);
-            }
-
-            public byte[] ReadBytes(long offset, long count)
-            {
-                CheckOffsets(offset, count, mSize);
-                return mHdd.ReadBytes(offset, count);
-            }
-
-            public long Length
-            {
-                get { return mSize; }
+                Init(hdd, 0, size);
             }
         }
 
-        class DynamicVhd : IHardDisk
+        class DynamicVhd : HardDisk
         {
             long mSize;
-            IHardDisk mHdd;
+            HardDisk mHdd;
             int mBlockSize;
             int[] mBat;
-            public DynamicVhd(IHardDisk hdd)
+            public DynamicVhd(HardDisk hdd)
             {
                 VhdHeader head = GetHeader(hdd);
                 int dySize = Marshal.SizeOf(typeof(DynamicHeader));
@@ -215,18 +189,22 @@ namespace ZfsSharp.HardDisk
                     Program.ByteSwap(typeof(int), bat, i * 4);
                     mBat[i] = Program.ToStruct<int>(bat, i * 4);
                 }
-
-                Console.WriteLine();
             }
 
-            public void Get<T>(long offset, out T @struct) where T : struct
+            public override void Get<T>(long offset, out T @struct)
             {
                 @struct = Program.ToStruct<T>(ReadBytes(offset, Marshal.SizeOf(typeof(T))));
             }
 
-            public byte[] ReadBytes(long offset, long size)
+            public override void ReadBytes(byte[] array, long arrayOffset, long offset, long count)
             {
-                CheckOffsets(offset, size, mSize);
+                var bytes = ReadBytes(offset, count);
+                Program.LongBlockCopy(bytes, 0, array, arrayOffset, count);
+            }
+
+            public override byte[] ReadBytes(long offset, long size)
+            {
+                CheckOffsets(offset, size);
 
                 var blockOffsets = new List<long>();
                 for (long i = offset; i < (offset + size); i += mBlockSize)
@@ -272,13 +250,11 @@ namespace ZfsSharp.HardDisk
                         var temp = mHdd.ReadBytes(blockOffset + i * SECTOR_SIZE, SECTOR_SIZE);
                         Buffer.BlockCopy(temp, 0, ret, i * SECTOR_SIZE, SECTOR_SIZE);
                     }
-                    else
-                        Console.WriteLine();
                 }
                 return ret;
             }
 
-            public long Length
+            public override long Length
             {
                 get { return mSize; }
             }

@@ -5,7 +5,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
-using ZfsSharp.HardDisk;
+using ZfsSharp.HardDisks;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
@@ -194,6 +194,22 @@ namespace ZfsSharp
                 if (cpyCount == 0)
                     cpyCount = (int)blockSize;
                 cpyCount -= startNdx;
+            }
+        }
+
+        public static void LongBlockCopy(byte[] src, long srcOffset, byte[] dst, long dstOffset, long count)
+        {
+            if (src == null || dst == null)
+                throw new ArgumentNullException();
+            if (srcOffset < 0 || dstOffset < 0 || count <= 0)
+                throw new ArgumentOutOfRangeException();
+            if (srcOffset + count > src.LongLength)
+                throw new ArgumentOutOfRangeException();
+            if (dstOffset + count > dst.LongLength)
+                throw new ArgumentOutOfRangeException();
+            for (long i = 0; i < count; i++)
+            {
+                dst[i + dstOffset] = src[i + srcOffset];
             }
         }
 

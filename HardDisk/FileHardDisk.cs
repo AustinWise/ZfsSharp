@@ -6,9 +6,9 @@ using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
 
-namespace ZfsSharp.HardDisk
+namespace ZfsSharp.HardDisks
 {
-    class FileHardDisk : IHardDisk
+    class FileHardDisk : HardDisk
     {
         private MemoryMappedFile mFile;
         private long mSize;
@@ -21,7 +21,7 @@ namespace ZfsSharp.HardDisk
             mFile = MemoryMappedFile.CreateFromFile(path, FileMode.Open);
         }
 
-        public void Get<T>(long offset, out T @struct) where T : struct
+        public override void Get<T>(long offset, out T @struct)
         {
             using (var ac = mFile.CreateViewAccessor(offset, Marshal.SizeOf(typeof(T))))
             {
@@ -29,21 +29,16 @@ namespace ZfsSharp.HardDisk
             }
         }
 
-        public byte[] ReadBytes(long offset, long count)
+        public override void ReadBytes(byte[] array, long arrayOffset, long offset, long count)
         {
-            if (offset < 0 || count <= 0 || offset + count > mSize)
-                throw new ArgumentOutOfRangeException();
-            if (count > Int32.MaxValue)
-                throw new ArgumentOutOfRangeException();
+            CheckOffsets(offset, count);
             using (var acc = mFile.CreateViewAccessor(offset, count))
             {
-                var ret = new byte[count];
-                acc.ReadArray(0, ret, 0, (int)count);
-                return ret;
+                acc.ReadArray(arrayOffset, array, 0, (int)count);
             }
         }
 
-        public long Length
+        public override long Length
         {
             get { return mSize; }
         }

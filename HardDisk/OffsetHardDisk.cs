@@ -5,15 +5,24 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace ZfsSharp.HardDisk
+namespace ZfsSharp.HardDisks
 {
-    class OffsetHardDisk : IHardDisk
+    class OffsetHardDisk : HardDisk
     {
-        IHardDisk mHdd;
+        HardDisk mHdd;
         long mOffset;
         long mSize;
 
-        public OffsetHardDisk(IHardDisk hdd, long offset, long size)
+        public OffsetHardDisk(HardDisk hdd, long offset, long size)
+        {
+            Init(hdd, offset, size);
+        }
+
+        protected OffsetHardDisk()
+        {
+        }
+
+        protected void Init(HardDisk hdd, long offset, long size)
         {
             if (offset < 0)
                 throw new ArgumentOutOfRangeException();
@@ -25,27 +34,25 @@ namespace ZfsSharp.HardDisk
             mSize = size;
         }
 
-        void checkOffsets(long offset, long size)
+        public override void Get<T>(long offset, out T @struct)
         {
-            if (offset < 0)
-                throw new ArgumentOutOfRangeException();
-            if (offset + size > mSize)
-                throw new ArgumentOutOfRangeException();
-        }
-
-        public void Get<T>(long offset, out T @struct) where T : struct
-        {
-            checkOffsets(offset, Marshal.SizeOf(typeof(T)));
+            CheckOffsets(offset, Marshal.SizeOf(typeof(T)));
             mHdd.Get<T>(mOffset + offset, out @struct);
         }
 
-        public byte[] ReadBytes(long offset, long count)
+        public override void ReadBytes(byte[] array, long arrayOffset, long offset, long count)
         {
-            checkOffsets(offset, count);
+            CheckOffsets(offset, count);
+            mHdd.ReadBytes(array, arrayOffset, mOffset + offset, count);
+        }
+
+        public override byte[] ReadBytes(long offset, long count)
+        {
+            CheckOffsets(offset, count);
             return mHdd.ReadBytes(mOffset + offset, count);
         }
 
-        public long Length
+        public override long Length
         {
             get { return mSize; }
         }

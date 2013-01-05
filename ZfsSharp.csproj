@@ -50,7 +50,7 @@
     <Compile Include="Flecter4.cs" />
     <Compile Include="HardDisk\FileHardDisk.cs" />
     <Compile Include="HardDisk\GptHardDrive.cs" />
-    <Compile Include="HardDisk\IHardDisk.cs" />
+    <Compile Include="HardDisk\HardDisk.cs" />
     <Compile Include="HardDisk\MbrHardDisk.cs" />
     <Compile Include="HardDisk\OffsetHardDisk.cs" />
     <Compile Include="Lzjb.cs" />

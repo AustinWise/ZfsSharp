@@ -12,11 +12,11 @@ namespace ZfsSharp
         const int SECTOR_SIZE = 512;
         const int SPA_MINBLOCKSHIFT = 9;
 
-        private IHardDisk[] mVdevs;
+        private HardDisk[] mVdevs;
         private Dictionary<zio_checksum, IChecksum> mChecksums = new Dictionary<zio_checksum, IChecksum>();
         private Dictionary<zio_compress, ICompression> mCompression = new Dictionary<zio_compress, ICompression>();
 
-        public Zio(IHardDisk[] vdevs)
+        public Zio(HardDisk[] vdevs)
         {
             mVdevs = vdevs;
 
@@ -59,7 +59,7 @@ namespace ZfsSharp
             if (dva.IsGang)
                 throw new NotImplementedException("Gang not supported.");
 
-            IHardDisk dev = mVdevs[dva.VDev];
+            HardDisk dev = mVdevs[dva.VDev];
 
             int physicalSize = ((int)blkptr.PSize + 1) * SECTOR_SIZE;
             byte[] physicalBytes = dev.ReadBytes(dva.Offset << 9, physicalSize);

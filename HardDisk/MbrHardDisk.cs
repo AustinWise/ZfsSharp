@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using System.Runtime.InteropServices;
 using System.IO;
 
-namespace ZfsSharp.HardDisk
+namespace ZfsSharp.HardDisks
 {
     enum MbrPartitionType : byte
     {
@@ -71,19 +71,18 @@ namespace ZfsSharp.HardDisk
     }
     #endregion
 
-    class MbrHardDisk : IHardDisk
+    class MbrHardDisk : OffsetHardDisk
     {
 
-        private IHardDisk mHdd;
+        //private HardDisk mHdd;
         private MbrHeader mHeader;
         private PartitionEntry mPartition;
-        private long mOffset;
-        private long mSize;
+        //private long mOffset;
+        //private long mSize;
 
-        public MbrHardDisk(IHardDisk hdd, int partition)
+        public MbrHardDisk(HardDisk hdd, int partition)
         {
-            this.mHdd = hdd;
-            mHdd.Get(0, out mHeader);
+            hdd.Get(0, out mHeader);
 
             //for now, always assume a GPT partition
             if (!MbrHardDisk.IsMbr(hdd))
@@ -92,37 +91,21 @@ namespace ZfsSharp.HardDisk
                 throw new Exception("Expected a GPT protective MBR entry.");
 
             mPartition = mHeader.GetPartition(partition);
-            mOffset = (long)mPartition.FirstSectorLba * MbrHeader.SectorSize;
-            mSize = (long)mPartition.NumberOfSectors * MbrHeader.SectorSize;
+            Init(hdd, (long)mPartition.FirstSectorLba * MbrHeader.SectorSize, (long)mPartition.NumberOfSectors * MbrHeader.SectorSize);
         }
 
-        public static bool IsMbr(IHardDisk hdd)
+        public static bool IsMbr(HardDisk hdd)
         {
             MbrHeader h;
             hdd.Get(0, out h);
             return h.BootSig == MbrHeader.MbrMagic;
         }
 
-        public static MbrPartitionType GetType(IHardDisk hdd, int index)
+        public static MbrPartitionType GetType(HardDisk hdd, int index)
         {
             MbrHeader h;
             hdd.Get(0, out h);
             return h.GetPartition(index).Type;
-        }
-
-        public void Get<T>(long offset, out T @struct) where T : struct
-        {
-            mHdd.Get<T>(offset + mOffset, out @struct);
-        }
-
-        public byte[] ReadBytes(long offset, long count)
-        {
-            return mHdd.ReadBytes(mOffset + offset, count);
-        }
-
-        public long Length
-        {
-            get { return mSize; }
         }
     }
 }
