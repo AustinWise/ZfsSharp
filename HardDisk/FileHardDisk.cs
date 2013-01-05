@@ -34,7 +34,7 @@ namespace ZfsSharp.HardDisks
             CheckOffsets(offset, count);
             using (var acc = mFile.CreateViewAccessor(offset, count))
             {
-                acc.ReadArray(arrayOffset, array, 0, (int)count);
+                acc.ReadArray<byte>(0, array, (int)arrayOffset, (int)count);
             }
         }
 
