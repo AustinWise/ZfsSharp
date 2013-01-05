@@ -45,7 +45,7 @@ namespace ZfsSharp
         //TODO: fix the off-by-one errors that are problably in here
         public byte[] Read(dnode_phys_t dn, long offset, long size)
         {
-            if (offset < 0 || size <= 0)
+            if (offset < 0 || size < 0)
                 throw new ArgumentOutOfRangeException();
             long blockSize = dn.DataBlkSizeSec * 512;
             long maxSize = (dn.MaxBlkId + 1) * blockSize;

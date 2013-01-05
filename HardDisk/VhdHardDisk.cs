@@ -196,13 +196,7 @@ namespace ZfsSharp.HardDisks
                 @struct = Program.ToStruct<T>(ReadBytes(offset, Marshal.SizeOf(typeof(T))));
             }
 
-            public override void ReadBytes(byte[] array, long arrayOffset, long offset, long count)
-            {
-                var bytes = ReadBytes(offset, count);
-                Program.LongBlockCopy(bytes, 0, array, arrayOffset, count);
-            }
-
-            public override byte[] ReadBytes(long offset, long size)
+            public override void ReadBytes(byte[] array, long arrayOffset, long offset, long size)
             {
                 CheckOffsets(offset, size);
 
@@ -217,24 +211,18 @@ namespace ZfsSharp.HardDisks
                 }
 
                 var ret = new byte[size];
-                long retNdx = 0;
+                long retNdx = arrayOffset;
                 for (int i = 0; i < blockOffsets.Count; i++)
                 {
                     long startNdx, cpyCount;
                     Program.GetMultiBlockCopyOffsets(i, blockOffsets.Count, mBlockSize, offset, size, out startNdx, out cpyCount);
 
-                    if (retNdx > Int32.MaxValue || startNdx > Int32.MaxValue || cpyCount > Int32.MaxValue)
-                        throw new NotImplementedException("No support for blocks this big yet.");
-
-                    var bytes = readBlock(blockOffsets[i]);
-                    Buffer.BlockCopy(bytes, (int)startNdx, ret, (int)retNdx, (int)cpyCount);
+                    readBlock(blockOffsets[i], array, retNdx, startNdx, cpyCount);
                     retNdx += mBlockSize;
                 }
-
-                return ret;
             }
 
-            byte[] readBlock(long blockOffset)
+            void readBlock(long blockOffset, byte[] array, long arrayOffset, long blockStartNdx, long blockCpyCount)
             {
                 const int SECTOR_SIZE = 512;
                 var numberOfSectors = mBlockSize / SECTOR_SIZE;
@@ -242,16 +230,27 @@ namespace ZfsSharp.HardDisks
 
                 blockOffset += numberOfSectors / 8;
 
-                var ret = new byte[mBlockSize];
-                for (int i = 0; i < numberOfSectors; i++)
+                var sectorOffsets = new List<long>();
+                for (long i = blockStartNdx; i < (blockStartNdx + blockCpyCount); i += SECTOR_SIZE)
                 {
+                    long sector = i / SECTOR_SIZE;
+                    if (!ba[(int)sector])
+                        throw new Exception("Missing block.");
+                    sectorOffsets.Add(sector);
+                }
+
+                long bytesRead = 0;
+                for (int i = 0; i < sectorOffsets.Count; i++)
+                {
+                    long sectorOffset = SECTOR_SIZE * sectorOffsets[i];
                     if (ba[i])
                     {
-                        var temp = mHdd.ReadBytes(blockOffset + i * SECTOR_SIZE, SECTOR_SIZE);
-                        Buffer.BlockCopy(temp, 0, ret, i * SECTOR_SIZE, SECTOR_SIZE);
+                        long startNdx, cpyCount;
+                        Program.GetMultiBlockCopyOffsets(i, sectorOffsets.Count, SECTOR_SIZE, blockStartNdx, blockCpyCount, out startNdx, out cpyCount);
+                        mHdd.ReadBytes(array, arrayOffset + bytesRead, blockOffset + sectorOffset + startNdx, cpyCount);
+                        bytesRead += cpyCount;
                     }
                 }
-                return ret;
             }
 
             public override long Length
