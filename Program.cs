@@ -29,8 +29,8 @@ namespace ZfsSharp
 
         unsafe static void Main(string[] args)
         {
-            //var vhd = new VhdHardDisk(@"D:\VPC\SmartOs\SmartOs.vhd");
-            var vhd = new VhdHardDisk(@"d:\VPC\SmartOs3\SmartOs3.vhd");
+            var file = new FileHardDisk(@"D:\VPC\SmartOs\SmartOs.vhd");
+            var vhd = VhdHardDisk.Create(file);
             var gpt = new GptHardDrive(vhd);
 
             List<uberblock_t> blocks = new List<uberblock_t>();
@@ -62,7 +62,7 @@ namespace ZfsSharp
             var dsl = new Dsl(ub.rootbp, zap, dmu, zio);
 
             var rootZpl = dsl.GetRootDataSet();
-            var fileContents = Encoding.ASCII.GetString(rootZpl.GetFileContents("/currbooted"));
+            //var fileContents = Encoding.ASCII.GetString(rootZpl.GetFileContents("/currbooted"));
             //var fileContents2 = Encoding.ASCII.GetString(rootZpl.GetFileContents("/global/asdf"));
 
             var root = rootZpl.Root;
@@ -143,6 +143,7 @@ namespace ZfsSharp
             { typeof(uint), 4 },
             { typeof(long), 8 },
             { typeof(ulong), 8 },
+            { typeof(Guid), 16 }, //TODO: determine if a GUID should really be byte swapped this way
         };
 
         unsafe static void ByteSwapField<T>(string fieldName, Type fieldType, byte[] byteArray) where T : struct

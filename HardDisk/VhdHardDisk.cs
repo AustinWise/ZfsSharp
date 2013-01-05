@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace ZfsSharp.HardDisk
 {
-    class VhdHardDisk : IHardDisk
+    static class VhdHardDisk
     {
         #region Struct Crap
         [Flags]
@@ -24,13 +24,20 @@ namespace ZfsSharp.HardDisk
             Win = 0x5769326B, //(Wi2k)
             Max = 0x4D616320,
         }
+        enum DiskType : int
+        {
+            None = 0,
+            Fixed = 2,
+            Dynamic = 3,
+            Differencing = 4,
+        }
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         unsafe struct VhdHeader
         {
             public fixed byte Cookie[8];
             public Features Features;
             public int FileFormatVersion;
-            public ulong DataOffset;
+            public long DataOffset;
             public int TimeStamp;
             public fixed byte CreatorApp[4];
             public int CreatorVersion;
@@ -38,7 +45,7 @@ namespace ZfsSharp.HardDisk
             public long OriginalSize;
             public long CurrentSize;
             public int DiskGeometry;
-            public int DiskType;
+            public DiskType DiskType;
             public int Checksum;
             public fixed byte UniqueId[16];
             public byte SavedState;
@@ -66,58 +73,123 @@ namespace ZfsSharp.HardDisk
                 }
             }
         }
+
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
+        unsafe struct DynamicHeader
+        {
+            fixed byte Cookie[8];
+            public long DataOffset;
+            public long TableOffset;
+            public int HeaderVersion;
+            public int MaxTableEntries;
+            public int BlockSize;
+            public int Checksum;
+            public Guid ParentUniqueID;
+            public int ParentTimeStamp;
+            int Reserved;
+            fixed byte ParentUnicodeName[512];
+            fixed byte LocatorEntries[8 * 24]; // for differencing disks only
+            fixed byte Reserved2[256];
+
+            public string CookieStr
+            {
+                get
+                {
+                    fixed (byte* bytes = Cookie)
+                    {
+                        return Marshal.PtrToStringAnsi(new IntPtr(bytes), 8);
+                    }
+                }
+            }
+
+            public string ParentUnicodeNameStr
+            {
+                get
+                {
+                    fixed (byte* bytes = ParentUnicodeName)
+                    {
+                        return Marshal.PtrToStringAnsi(new IntPtr(bytes), 512);
+                    }
+                }
+            }
+        }
         #endregion
 
-        private MemoryMappedFile mFile;
-        private long mSize;
-
-        public void Get<T>(long offset, out T @struct) where T : struct
+        static VhdHeader GetHeader(IHardDisk hdd)
         {
-            using (var ac = mFile.CreateViewAccessor(offset, Marshal.SizeOf(typeof(T))))
-            {
-                ac.Read(0, out @struct);
-            }
+            return Program.ToStructByteSwap<VhdHeader>(hdd.ReadBytes(hdd.Length - 512, 512));
         }
 
-        public VhdHardDisk(string path)
+        //TODO: move this to some sort of HDD base class
+        static void CheckOffsets(long offset, long size, long mySize)
         {
-            var fi = new FileInfo(path);
+            if (offset < 0 || size <= 0 || offset + size > mySize)
+                throw new ArgumentOutOfRangeException();
+        }
 
-            mFile = MemoryMappedFile.CreateFromFile(path, FileMode.Open);
+        public static IHardDisk Create(IHardDisk hdd)
+        {
+            VhdHeader head = GetHeader(hdd);
+            if (head.CookieStr != "conectix")
+                throw new Exception();
 
-            byte[] headerBytes = new byte[Marshal.SizeOf(typeof(VhdHeader))];
-            using (var ac = mFile.CreateViewAccessor(fi.Length - 512, 512))
+            if (head.DiskType == DiskType.Fixed)
             {
-                ac.ReadArray(0, headerBytes, 0, headerBytes.Length);
+                return new FixedVhd(hdd);
             }
-            VhdHeader head = Program.ToStructByteSwap<VhdHeader>(headerBytes);
-
-            if (head.DataOffset != 0xffffffffffffffff)
+            else if (head.DiskType == DiskType.Dynamic)
             {
-                mFile.Dispose();
+                throw new NotImplementedException();
+            }
+            else
+            {
                 throw new Exception("Only fixed size VHDs are supported.");
             }
-
-            mSize = head.CurrentSize;
         }
 
-        public byte[] ReadBytes(long offset, long count)
+        class FixedVhd : IHardDisk
         {
-            if (offset < 0 || count <= 0 || offset + count > mSize)
-                throw new ArgumentOutOfRangeException();
-            if (count > Int32.MaxValue)
-                throw new ArgumentOutOfRangeException();
-            using (var acc = mFile.CreateViewAccessor(offset, count))
+            long mSize;
+            IHardDisk mHdd;
+
+            public FixedVhd(IHardDisk hdd)
             {
-                var ret = new byte[count];
-                acc.ReadArray(0, ret, 0, (int)count);
-                return ret;
+                mHdd = hdd;
+                mSize = hdd.Length - 512;
+                var head = GetHeader(hdd);
+
+                if (head.CurrentSize != mSize)
+                    throw new Exception();
+            }
+
+            public void Get<T>(long offset, out T @struct) where T : struct
+            {
+                CheckOffsets(offset, Marshal.SizeOf(typeof(T)), mSize);
+                mHdd.Get<T>(offset, out @struct);
+            }
+
+            public byte[] ReadBytes(long offset, long count)
+            {
+                CheckOffsets(offset, count, mSize);
+                return mHdd.ReadBytes(offset, count);
+            }
+
+            public long Length
+            {
+                get { return mSize; }
             }
         }
 
-        public long Length
+        class DynamicVhd
         {
-            get { return mSize; }
+            public DynamicVhd(IHardDisk hdd)
+            {
+                VhdHeader head = GetHeader(hdd);
+                int dySize = Marshal.SizeOf(typeof(DynamicHeader));
+                DynamicHeader dyhead = Program.ToStructByteSwap<DynamicHeader>(hdd.ReadBytes(head.DataOffset, dySize));
+                if (dyhead.CookieStr != "cxsparse")
+                    throw new Exception();
+            }
         }
     }
 }
