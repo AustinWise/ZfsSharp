@@ -14,6 +14,8 @@ namespace ZfsSharp
         Stream GetStream(long offset, long size);
         Stream GetStream();
 
+        byte[] ReadBytes(long offset, long count);
+
         long Length { get; }
     }
 }

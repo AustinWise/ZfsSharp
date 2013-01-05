@@ -158,5 +158,10 @@ namespace ZfsSharp.HardDisk
         {
             get { return mSize; }
         }
+
+        public byte[] ReadBytes(long offset, long count)
+        {
+            return mHdd.ReadBytes(mOffset + offset, count);
+        }
     }
 }

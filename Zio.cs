@@ -30,6 +30,8 @@ namespace ZfsSharp
         {
             if (blkptr.IsDedup)
                 throw new NotImplementedException("dedup not supported.");
+            if (!blkptr.IsLittleEndian)
+                throw new NotImplementedException("Byte swapping not implemented.");
 
             //try
             {

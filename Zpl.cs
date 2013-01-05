@@ -62,10 +62,6 @@ namespace ZfsSharp
                 var types = ((short[])saLayouts[layoutName]).Select(a => (zpl_attr_t)a).ToArray();
                 mAttrLayouts.Add(layoutNumber, new SaLayout(mAttrSize, types));
             }
-
-            var rootDirDnode = dmu.ReadFromObjectSet(mZfsObjset, mZfsObjDir["ROOT"]);
-            var rootSaHeader = dmu.GetBonus<sa_hdr_phys_t>(rootDirDnode);
-            var rootDirContents = zap.GetDirectoryEntries(rootDirDnode);
         }
 
         public ZfsDirectory Root

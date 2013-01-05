@@ -41,7 +41,18 @@ namespace ZfsSharp
                 if (zapHeader.BlockType == ZapBlockType.MICRO)
                     return ParseMicro(ptr, zapBytes.Length);
                 else if (zapHeader.BlockType == ZapBlockType.HEADER)
-                    throw new NotImplementedException();
+                {
+                    var fat = ParseFat(dn, ptr, zapBytes.Length);
+                    var ret = new Dictionary<string, long>();
+                    foreach (var kvp in fat)
+                    {
+                        var data = (long[])kvp.Value;
+                        if (data.Length != 1)
+                            throw new Exception();
+                        ret.Add(kvp.Key, data[0]);
+                    }
+                    return ret;
+                }
                 else
                     throw new NotSupportedException();
             }

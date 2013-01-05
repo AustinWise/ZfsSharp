@@ -109,6 +109,19 @@ namespace ZfsSharp.HardDisk
             mSize = head.CurrentSize;
         }
 
+        public byte[] ReadBytes(long offset, long count)
+        {
+            if (offset < 0 || count <= 0 || offset + count > mSize)
+                throw new ArgumentOutOfRangeException();
+            if (count > Int32.MaxValue)
+                throw new ArgumentOutOfRangeException();
+            using (var acc = mFile.CreateViewAccessor(offset, count))
+            {
+                var ret = new byte[count];
+                acc.ReadArray(0, ret, 0, (int)count);
+                return ret;
+            }
+        }
 
         public long Length
         {
