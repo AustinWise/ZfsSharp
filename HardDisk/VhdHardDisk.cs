@@ -199,27 +199,15 @@ namespace ZfsSharp.HardDisks
             public override void ReadBytes(byte[] array, long arrayOffset, long offset, long size)
             {
                 CheckOffsets(offset, size);
+                Program.MultiBlockCopy<long>(array, 0, offset, size, mBlockSize, getBlockOffset, readBlock);
+            }
 
-                var blockOffsets = new List<long>();
-                for (long i = offset; i < (offset + size); i += mBlockSize)
-                {
-                    long blockId = i / mBlockSize;
-                    long blockOffset = mBat[blockId];
-                    if (blockOffset == 0xffffffffL)
-                        throw new Exception("Missing block.");
-                    blockOffsets.Add(blockOffset * 512);
-                }
-
-                var ret = new byte[size];
-                long retNdx = arrayOffset;
-                for (int i = 0; i < blockOffsets.Count; i++)
-                {
-                    long startNdx, cpyCount;
-                    Program.GetMultiBlockCopyOffsets(i, blockOffsets.Count, mBlockSize, offset, size, out startNdx, out cpyCount);
-
-                    readBlock(blockOffsets[i], array, retNdx, startNdx, cpyCount);
-                    retNdx += mBlockSize;
-                }
+            private long getBlockOffset(long blockId)
+            {
+                long blockOffset = mBat[blockId];
+                if (blockOffset == 0xffffffffL)
+                    throw new Exception("Missing block.");
+                return blockOffset * 512;
             }
 
             void readBlock(long blockOffset, byte[] array, long arrayOffset, long blockStartNdx, long blockCpyCount)
@@ -230,27 +218,15 @@ namespace ZfsSharp.HardDisks
 
                 blockOffset += numberOfSectors / 8;
 
-                var sectorOffsets = new List<long>();
-                for (long i = blockStartNdx; i < (blockStartNdx + blockCpyCount); i += SECTOR_SIZE)
+                Program.MultiBlockCopy<long>(array, arrayOffset, blockStartNdx, blockCpyCount, SECTOR_SIZE, sector =>
                 {
-                    long sector = i / SECTOR_SIZE;
                     if (!ba[(int)sector])
-                        throw new Exception("Missing block.");
-                    sectorOffsets.Add(sector);
-                }
-
-                long bytesRead = 0;
-                for (int i = 0; i < sectorOffsets.Count; i++)
+                        throw new Exception("Missing sector.");
+                    return sector * 512;
+                }, (long sectorOffset, byte[] dest, long destOffset, long startNdx, long cpyCount) =>
                 {
-                    long sectorOffset = SECTOR_SIZE * sectorOffsets[i];
-                    if (ba[i])
-                    {
-                        long startNdx, cpyCount;
-                        Program.GetMultiBlockCopyOffsets(i, sectorOffsets.Count, SECTOR_SIZE, blockStartNdx, blockCpyCount, out startNdx, out cpyCount);
-                        mHdd.ReadBytes(array, arrayOffset + bytesRead, blockOffset + sectorOffset + startNdx, cpyCount);
-                        bytesRead += cpyCount;
-                    }
-                }
+                    mHdd.ReadBytes(dest, destOffset, blockOffset + sectorOffset + startNdx, cpyCount);
+                });
             }
 
             public override long Length

@@ -27,6 +27,8 @@ namespace ZfsSharp
             mZio = zio;
 
             mMos = zio.Get<objset_phys_t>(rootbp);
+            if (mMos.Type != dmu_objset_type_t.DMU_OST_META)
+                throw new Exception("Given block pointer did not point to the MOS.");
 
             dnode_phys_t objectDirectory = dmu.ReadFromObjectSet(mMos, 1);
             mObjDir = zap.GetDirectoryEntries(objectDirectory);

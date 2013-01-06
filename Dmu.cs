@@ -52,29 +52,15 @@ namespace ZfsSharp
             if ((offset + size) > maxSize)
                 throw new ArgumentOutOfRangeException();
 
-            List<blkptr_t> dataBlockPtrs = new List<blkptr_t>();
-            for (long i = offset; i < (offset + size); i += blockSize)
-            {
-                long blockId = i / blockSize;
-                dataBlockPtrs.Add(GetBlock(ref dn, blockId));
-            }
-
             var ret = new byte[size];
-            long retNdx = 0;
-            for (int i = 0; i < dataBlockPtrs.Count; i++)
-            {
-                long startNdx, cpyCount;
-                Program.GetMultiBlockCopyOffsets(i, dataBlockPtrs.Count, blockSize, offset, size, out startNdx, out cpyCount);
-
-                var bytes = mZio.Read(dataBlockPtrs[i]);
-                Program.LongBlockCopy(bytes, startNdx, ret, retNdx, cpyCount);
-                retNdx += blockSize;
-            }
-
-            //var dataBytes = mZio.Read(ptr);
-            //var ret = new byte[size];
-            //Buffer.BlockCopy(dataBytes, (int)(offset % blockSize), ret, 0, (int)size);
+            Program.MultiBlockCopy<blkptr_t>(ret, 0, offset, size, blockSize, blkId => GetBlock(ref dn, blkId), readBlock);
             return ret;
+        }
+
+        private void readBlock(blkptr_t blkptr, byte[] dest, long destOffset, long startNdx, long cpyCount)
+        {
+            var src = mZio.Read(blkptr);
+            Program.LongBlockCopy(src, startNdx, dest, destOffset, cpyCount);
         }
 
         private blkptr_t GetBlock(ref dnode_phys_t dn, long blockId)

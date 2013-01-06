@@ -197,6 +197,47 @@ namespace ZfsSharp
             }
         }
 
+        /// <summary>
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="blockKey">An identifier for the block.</param>
+        /// <param name="dest">The place to store the read data.</param>
+        /// <param name="destOffset">The offset within dest to place the data.</param>
+        /// <param name="startNdx">The offset within the block to start reading from.</param>
+        /// <param name="cpyCount">The number of bytes to read.</param>
+        public delegate void BlockReader<T>(T blockKey, byte[] dest, long destOffset, long startNdx, long cpyCount);
+
+        /// <summary>
+        /// Given a large amount of data stored in equal sized blocks, reads a subset of that data efficiently.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="dest">The place to store the read data.</param>
+        /// <param name="destOffset">The offset in dest where to store the data.</param>
+        /// <param name="offset">The byte offset into the blocks to read.</param>
+        /// <param name="size">The number of bytes to read.</param>
+        /// <param name="blockSize">The size of the blocks.</param>
+        /// <param name="GetBlockKey">Given a block offset returns a key for reading that block.</param>
+        /// <param name="ReadBlock">Given a block key, reads the block.</param>
+        public static void MultiBlockCopy<T>(byte[] dest, long destOffset, long offset, long size, long blockSize, Func<long, T> GetBlockKey, BlockReader<T> ReadBlock)
+        {
+            List<T> dataBlockPtrs = new List<T>();
+            for (long i = offset; i < (offset + size); i += blockSize)
+            {
+                long blockId = i / blockSize;
+                dataBlockPtrs.Add(GetBlockKey(blockId));
+            }
+
+            long retNdx = destOffset;
+            for (int i = 0; i < dataBlockPtrs.Count; i++)
+            {
+                long startNdx, cpyCount;
+                Program.GetMultiBlockCopyOffsets(i, dataBlockPtrs.Count, blockSize, offset, size, out startNdx, out cpyCount);
+
+                ReadBlock(dataBlockPtrs[i], dest, retNdx, startNdx, cpyCount);
+                retNdx += blockSize;
+            }
+        }
+
         public static void LongBlockCopy(byte[] src, long srcOffset, byte[] dst, long dstOffset, long count)
         {
             if (src == null || dst == null)
