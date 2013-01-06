@@ -32,9 +32,11 @@ namespace ZfsSharp.HardDisks
         public override void ReadBytes(byte[] array, long arrayOffset, long offset, long count)
         {
             CheckOffsets(offset, count);
-            using (var acc = mFile.CreateViewAccessor(offset, count))
+            using (var s = mFile.CreateViewStream(offset, count, MemoryMappedFileAccess.Read))
             {
-                acc.ReadArray<byte>(0, array, (int)arrayOffset, (int)count);
+                var rc = s.Read(array, (int)arrayOffset, (int)count);
+                if (rc != count)
+                    throw new IOException("Not enough bytes read.");
             }
         }
 

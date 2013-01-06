@@ -220,20 +220,20 @@ namespace ZfsSharp
         /// <param name="ReadBlock">Given a block key, reads the block.</param>
         public static void MultiBlockCopy<T>(byte[] dest, long destOffset, long offset, long size, long blockSize, Func<long, T> GetBlockKey, BlockReader<T> ReadBlock)
         {
-            List<T> dataBlockPtrs = new List<T>();
+            List<T> blockKeys = new List<T>();
             for (long i = offset; i < (offset + size); i += blockSize)
             {
                 long blockId = i / blockSize;
-                dataBlockPtrs.Add(GetBlockKey(blockId));
+                blockKeys.Add(GetBlockKey(blockId));
             }
 
             long retNdx = destOffset;
-            for (int i = 0; i < dataBlockPtrs.Count; i++)
+            for (int i = 0; i < blockKeys.Count; i++)
             {
                 long startNdx, cpyCount;
-                Program.GetMultiBlockCopyOffsets(i, dataBlockPtrs.Count, blockSize, offset, size, out startNdx, out cpyCount);
+                Program.GetMultiBlockCopyOffsets(i, blockKeys.Count, blockSize, offset, size, out startNdx, out cpyCount);
 
-                ReadBlock(dataBlockPtrs[i], dest, retNdx, startNdx, cpyCount);
+                ReadBlock(blockKeys[i], dest, retNdx, startNdx, cpyCount);
                 retNdx += blockSize;
             }
         }
