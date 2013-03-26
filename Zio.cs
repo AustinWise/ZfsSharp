@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using ZfsSharp.VirtualDevices;
 
 namespace ZfsSharp
 {
@@ -12,11 +13,11 @@ namespace ZfsSharp
         const int SECTOR_SIZE = 512;
         const int SPA_MINBLOCKSHIFT = 9;
 
-        private HardDisk[] mVdevs;
+        private Vdev[] mVdevs;
         private Dictionary<zio_checksum, IChecksum> mChecksums = new Dictionary<zio_checksum, IChecksum>();
         private Dictionary<zio_compress, ICompression> mCompression = new Dictionary<zio_compress, ICompression>();
 
-        public Zio(HardDisk[] vdevs)
+        public Zio(Vdev[] vdevs)
         {
             mVdevs = vdevs;
 
@@ -59,25 +60,31 @@ namespace ZfsSharp
             if (dva.IsGang)
                 throw new NotImplementedException("Gang not supported.");
 
-            HardDisk dev = mVdevs[dva.VDev];
+            Vdev dev = mVdevs[dva.VDev];
 
             int physicalSize = ((int)blkptr.PSize + 1) * SECTOR_SIZE;
-            byte[] physicalBytes = dev.ReadBytes(dva.Offset << 9, physicalSize);
-
-            using (var s = new MemoryStream(physicalBytes))
+            foreach (byte[] physicalBytes in dev.ReadBytes(dva.Offset << 9, physicalSize))
             {
-                var chk = mChecksums[blkptr.Checksum].Calculate(s, physicalSize);
-                if (chk.word1 != blkptr.cksum.word1 ||
-                    chk.word2 != blkptr.cksum.word2 ||
-                    chk.word3 != blkptr.cksum.word3 ||
-                    chk.word4 != blkptr.cksum.word4)
-                    throw new Exception();
+                using (var s = new MemoryStream(physicalBytes))
+                {
+                    var chk = mChecksums[blkptr.Checksum].Calculate(s, physicalSize);
+                    if (chk.word1 != blkptr.cksum.word1 ||
+                        chk.word2 != blkptr.cksum.word2 ||
+                        chk.word3 != blkptr.cksum.word3 ||
+                        chk.word4 != blkptr.cksum.word4)
+                    {
+                        Console.WriteLine("Checksum fail."); //TODO: proper logging
+                        continue;
+                    }
+                }
+
+                byte[] logicalBytes = new byte[((long)blkptr.LSize + 1) * SECTOR_SIZE];
+                mCompression[blkptr.Compress].Decompress(physicalBytes, logicalBytes);
+
+                return logicalBytes;
             }
 
-            byte[] logicalBytes = new byte[((long)blkptr.LSize + 1) * SECTOR_SIZE];
-            mCompression[blkptr.Compress].Decompress(physicalBytes, logicalBytes);
-
-            return logicalBytes;
+            throw new Exception("Could not find a correct copy of the requested data.");
         }
 
         public unsafe T Get<T>(blkptr_t blkptr) where T : struct
@@ -110,12 +117,26 @@ namespace ZfsSharp
     #region ZFS structs
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    struct zio_cksum_t
+    struct zio_cksum_t : IEquatable<zio_cksum_t>
     {
         public ulong word1;
         public ulong word2;
         public ulong word3;
         public ulong word4;
+
+        public bool Equals(zio_cksum_t other)
+        {
+            return (this.word1 != other.word1 ||
+                    this.word2 != other.word2 ||
+                    this.word3 != other.word3 ||
+                    this.word4 != other.word4);
+        }
+
+        public override int GetHashCode()
+        {
+            ulong longHash = word1 ^ word2 ^ word3 ^ word4;
+            return (int)((longHash >> 32) ^ (longHash & 0xffffffff));
+        }
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -151,7 +172,7 @@ namespace ZfsSharp
         }
     }
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    struct blkptr_t
+    struct blkptr_t : IEquatable<blkptr_t>
     {
         public const int SPA_BLKPTRSHIFT = 7;
         public const int SPA_DVAS_PER_BP = 3;
@@ -207,6 +228,25 @@ namespace ZfsSharp
         public ushort LSize
         {
             get { return (ushort)(prop & 0xffff); }
+        }
+
+        public bool Equals(blkptr_t other)
+        {
+            if (this.Checksum != zio_checksum.OFF)
+                return this.cksum.Equals(other.cksum);
+            return false; // don't worry about blocks without checksums for now
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (obj == null || obj.GetType() != GetType())
+                return false;
+            return Equals((blkptr_t)obj);
+        }
+
+        public override int GetHashCode()
+        {
+            return this.cksum.GetHashCode();
         }
     }
     enum zio_checksum : byte

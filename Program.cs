@@ -56,7 +56,7 @@ namespace ZfsSharp
             const int VDevLableSizeStart = 4 << 20;
             const int VDevLableSizeEnd = 512 << 10;
             var dev = new OffsetHardDisk(gpt, VDevLableSizeStart, gpt.Length - VDevLableSizeStart - VDevLableSizeEnd);
-            var zio = new Zio(new[] { dev });
+            Zio zio = new Zio(new[] { new HddVdev(dev) });
             var dmu = new Dmu(zio);
             var zap = new Zap(dmu);
             var dsl = new Dsl(ub.rootbp, zap, dmu, zio);
