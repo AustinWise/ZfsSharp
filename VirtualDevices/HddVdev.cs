@@ -25,14 +25,13 @@ namespace ZfsSharp.VirtualDevices
             }
             this.Uberblock = blocks.OrderByDescending(u => u.Txg).First();
 
-            NvList nv;
             using (var s = new MemoryStream(hdd.ReadBytes(16 << 10, 112 << 10)))
-                nv = new NvList(s);
-            if (nv.Get<ulong>("version") != 5000)
+                Config = new NvList(s);
+            if (Config.Get<ulong>("version") != 5000)
             {
                 throw new NotSupportedException();
             }
-            Guid = nv.Get<UInt64>("guid");
+            Guid = Config.Get<UInt64>("guid");
 
             const int VDevLableSizeStart = 4 << 20;
             const int VDevLableSizeEnd = 512 << 10;
@@ -47,5 +46,6 @@ namespace ZfsSharp.VirtualDevices
 
         public ulong Guid { get; private set; }
         public uberblock_t Uberblock { get; private set; }
+        public NvList Config { get; private set; }
     }
 }
