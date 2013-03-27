@@ -36,7 +36,7 @@ namespace ZfsSharp.VirtualDevices
 
             const int VDevLableSizeStart = 4 << 20;
             const int VDevLableSizeEnd = 512 << 10;
-            hdd = new OffsetHardDisk(hdd, VDevLableSizeStart, hdd.Length - VDevLableSizeStart - VDevLableSizeEnd);
+            hdd = OffsetHardDisk.Create(hdd, VDevLableSizeStart, hdd.Length - VDevLableSizeStart - VDevLableSizeEnd);
             this.mHdd = hdd;
         }
 
