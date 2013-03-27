@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 using ZfsSharp.HardDisks;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Diagnostics;
+using ZfsSharp.VirtualDevices;
 
 namespace ZfsSharp
 {
@@ -20,46 +22,43 @@ namespace ZfsSharp
         public ulong GuidSum;
         public ulong TimeStamp;
         public blkptr_t rootbp;
+
+        public const ulong UbMagic = 0x00bab10c;
     }
 
     class Program
     {
-        const ulong UbMagic = 0x00bab10c;
+        static List<HardDisk> GetHdds(string dir)
+        {
+            var ret = new List<HardDisk>();
+            foreach (var fi in new DirectoryInfo(dir).GetFiles("*.vhd"))
+            {
+                var file = new FileHardDisk(fi.FullName);
+                var vhd = VhdHardDisk.Create(file);
+                var gpt = new GptHardDrive(vhd);
+                ret.Add(gpt);
+            }
+            return ret;
+        }
 
+        static Vdev[] CreateVdevTree(List<HardDisk> hdds)
+        {
+            throw new NotImplementedException();
+        }
 
-        unsafe static void Main(string[] args)
+        static void Main(string[] args)
         {
             var file = new FileHardDisk(@"D:\VPC\SmartOs\SmartOs.vhd");
+            //var file = new FileHardDisk(@"D:\VPC\SmartOs2\SmartOs2.vhd");
+            //var file = new FileHardDisk(@"d:\VPC\SmartOs3\SmartOs3.vhd");
             var vhd = VhdHardDisk.Create(file);
             var gpt = new GptHardDrive(vhd);
+            var vdev = new HddVdev(gpt);
 
-            List<uberblock_t> blocks = new List<uberblock_t>();
-            for (long i = 0; i < 128; i++)
-            {
-                var offset = (128 << 10) + 1024 * i;
-                uberblock_t b;
-                gpt.Get<uberblock_t>(offset, out b);
-                if (b.Magic == UbMagic)
-                    blocks.Add(b);
-            }
-            var ub = blocks.OrderByDescending(u => u.Txg).First();
-
-            NvList nv;
-            using (var s = new MemoryStream(gpt.ReadBytes(16 << 10, 112 << 10)))
-                nv = new NvList(s);
-            if (nv.Get<ulong>("version") != 5000)
-            {
-                throw new NotSupportedException();
-            }
-            var diskGuid = nv.Get<UInt64>("guid");
-
-            const int VDevLableSizeStart = 4 << 20;
-            const int VDevLableSizeEnd = 512 << 10;
-            var dev = new OffsetHardDisk(gpt, VDevLableSizeStart, gpt.Length - VDevLableSizeStart - VDevLableSizeEnd);
-            Zio zio = new Zio(new[] { new HddVdev(dev) });
+            Zio zio = new Zio(new[] { vdev });
             var dmu = new Dmu(zio);
             var zap = new Zap(dmu);
-            var dsl = new Dsl(ub.rootbp, zap, dmu, zio);
+            var dsl = new Dsl(vdev.Uberblock.rootbp, zap, dmu, zio);
 
             var rootZpl = dsl.GetRootDataSet();
             //var fileContents = Encoding.ASCII.GetString(rootZpl.GetFileContents("/currbooted"));
@@ -77,6 +76,9 @@ namespace ZfsSharp
                     continue;
                 var zpl = dsl.GetDataset(ds.Value);
                 printContent(ds.Key, zpl.Root);
+
+                if (ds.Key == "zones/var")
+                    Console.WriteLine(Encoding.ASCII.GetString(zpl.GetFileContents(@"/svc/log/svc.startd.log")));
             }
 
             /*
@@ -87,6 +89,20 @@ namespace ZfsSharp
              */
 
             Console.WriteLine();
+        }
+
+        private static void BenchmarkFileReading(Dsl dsl)
+        {
+
+            var varzpl = dsl.ListDataSet().Where(k => k.Key == "zones/var").Select(k => dsl.GetDataset(k.Value)).Single();
+            Stopwatch st = Stopwatch.StartNew();
+            for (int i = 0; i < 1000; i++)
+            {
+                varzpl.GetFileContents(@"/svc/log/svc.startd.log");
+            }
+            st.Stop();
+
+            Console.WriteLine(st.Elapsed.TotalSeconds);
         }
 
         static void printContent(string namePrefix, Zpl.ZfsItem item)

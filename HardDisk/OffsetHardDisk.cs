@@ -7,6 +7,8 @@ using System.Text;
 
 namespace ZfsSharp.HardDisks
 {
+    //TODO: consider a static creation method that sees if the harddrive it is wrapping is a OffsetHardDrive.
+    //In that case, it would would wrap the underlying hard disk instead of creating another indirection layer.
     class OffsetHardDisk : HardDisk
     {
         HardDisk mHdd;
