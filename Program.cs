@@ -28,26 +28,39 @@ namespace ZfsSharp
 
     class Program
     {
-        static List<HardDisk> GetHdds(string dir)
+        static List<HddVdev> GetLeafVdevs(string dir)
         {
-            var ret = new List<HardDisk>();
+            var ret = new List<HddVdev>();
             foreach (var fi in new DirectoryInfo(dir).GetFiles("*.vhd"))
             {
                 var file = new FileHardDisk(fi.FullName);
                 var vhd = VhdHardDisk.Create(file);
                 var gpt = new GptHardDrive(vhd);
-                ret.Add(gpt);
+                var vdev = new HddVdev(gpt);
+                ret.Add(vdev);
             }
             return ret;
         }
 
-        static Vdev[] CreateVdevTree(List<HardDisk> hdds)
+        static Vdev[] CreateVdevTree(List<HddVdev> hdds)
         {
-            throw new NotImplementedException();
+            var poolGuid = hdds.Select(h => h.Config.Get<ulong>("pool_guid")).Distinct().Single();
+
+            var hddMap = new Dictionary<ulong, HddVdev>();
+            var innerVdevConfigs = new Dictionary<ulong, NvList>();
+            foreach (var hdd in hdds)
+            {
+                hddMap.Add(hdd.Config.Get<ulong>("guid"), hdd);
+                var vdevTree = hdd.Config.Get<NvList>("vdev_tree");
+                innerVdevConfigs[vdevTree.Get<ulong>("guid")] = vdevTree;
+            }
+
+            return new Vdev[0];
         }
 
         static void Main(string[] args)
         {
+            var vdevs = CreateVdevTree(GetLeafVdevs(@"D:\VPC\SmartOs4\"));
             var file = new FileHardDisk(@"D:\VPC\SmartOs\SmartOs.vhd");
             //var file = new FileHardDisk(@"D:\VPC\SmartOs2\SmartOs2.vhd");
             //var file = new FileHardDisk(@"d:\VPC\SmartOs3\SmartOs3.vhd");
