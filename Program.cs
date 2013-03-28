@@ -28,25 +28,38 @@ namespace ZfsSharp
 
     class Program
     {
-        static List<HddVdev> GetLeafVdevs(string dir)
+        static List<LeafVdevInfo> GetLeafVdevs(string dir)
         {
-            var ret = new List<HddVdev>();
+            var virtualHardDisks = new List<HardDisk>();
             foreach (var fi in new DirectoryInfo(dir).GetFiles("*.vhd"))
             {
                 var file = new FileHardDisk(fi.FullName);
                 var vhd = VhdHardDisk.Create(file);
-                var gpt = new GptHardDrive(vhd);
-                var vdev = new HddVdev(gpt);
+                virtualHardDisks.Add(vhd);
+            }
+            foreach (var fi in new DirectoryInfo(dir).GetFiles("*.vdi"))
+            {
+                var file = new FileHardDisk(fi.FullName);
+                var vhd = new VdiHardDisk(file);
+                virtualHardDisks.Add(vhd);
+            }
+
+            var ret = new List<LeafVdevInfo>();
+            foreach (var hdd in virtualHardDisks)
+            {
+                var gpt = new GptHardDrive(hdd);
+                var vdev = new LeafVdevInfo(gpt);
                 ret.Add(vdev);
             }
             return ret;
         }
 
-        static Vdev[] CreateVdevTree(List<HddVdev> hdds)
+        static Vdev[] CreateVdevTree(List<LeafVdevInfo> hdds)
         {
             var poolGuid = hdds.Select(h => h.Config.Get<ulong>("pool_guid")).Distinct().Single();
+            var topGuid = hdds.Select(h => h.Config.Get<ulong>("top_guid")).Distinct().Single();
 
-            var hddMap = new Dictionary<ulong, HddVdev>();
+            var hddMap = new Dictionary<ulong, LeafVdevInfo>();
             var innerVdevConfigs = new Dictionary<ulong, NvList>();
             foreach (var hdd in hdds)
             {
@@ -55,23 +68,38 @@ namespace ZfsSharp
                 innerVdevConfigs[vdevTree.Get<ulong>("guid")] = vdevTree;
             }
 
-            return new Vdev[0];
+            var innerVdevs = new List<Vdev>();
+            foreach (var kvp in innerVdevConfigs)
+            {
+                innerVdevs.Add(Vdev.Create(kvp.Value, hddMap));
+            }
+
+            ulong calculatedTopGuid = 0;
+            for (int i = 0; i < innerVdevs.Count; i++)
+            {
+                calculatedTopGuid += innerVdevs[i].Guid;
+            }
+            if (calculatedTopGuid != topGuid)
+                throw new Exception("Missing vdev.");
+
+            var ret = innerVdevs.OrderBy(v => v.ID).ToArray();
+            for (uint i = 0; i < ret.Length; i++)
+            {
+                if (ret[i].ID != i)
+                    throw new Exception("Missing vdev.");
+            }
+            return ret;
         }
 
         static void Main(string[] args)
         {
-            var vdevs = CreateVdevTree(GetLeafVdevs(@"D:\VPC\SmartOs4\"));
-            var file = new FileHardDisk(@"D:\VPC\SmartOs\SmartOs.vhd");
-            //var file = new FileHardDisk(@"D:\VPC\SmartOs2\SmartOs2.vhd");
-            //var file = new FileHardDisk(@"d:\VPC\SmartOs3\SmartOs3.vhd");
-            var vhd = VhdHardDisk.Create(file);
-            var gpt = new GptHardDrive(vhd);
-            var vdev = new HddVdev(gpt);
+            var hdds = GetLeafVdevs(@"D:\VPC\SmartOs4\");
+            var vdevs = CreateVdevTree(hdds);
 
-            Zio zio = new Zio(new[] { vdev });
+            Zio zio = new Zio(vdevs);
             var dmu = new Dmu(zio);
             var zap = new Zap(dmu);
-            var dsl = new Dsl(vdev.Uberblock.rootbp, zap, dmu, zio);
+            Dsl dsl = new Dsl(hdds[0].Uberblock.rootbp, zap, dmu, zio);
 
             var rootZpl = dsl.GetRootDataSet();
             //var fileContents = Encoding.ASCII.GetString(rootZpl.GetFileContents("/currbooted"));

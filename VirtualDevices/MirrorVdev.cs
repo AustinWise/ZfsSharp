@@ -8,9 +8,12 @@ namespace ZfsSharp.VirtualDevices
     class MirrorVdev : Vdev
     {
         readonly Vdev[] mVdevs;
-        public MirrorVdev(Vdev[] vdevs)
+        public MirrorVdev(NvList config, Dictionary<ulong, LeafVdevInfo> leafs)
+            : base(config)
         {
-            this.mVdevs = (Vdev[])vdevs.Clone();
+            this.mVdevs = config.Get<NvList[]>("children")
+                .Select(child => Vdev.Create(child, leafs))
+                .ToArray();
         }
 
         public override IEnumerable<byte[]> ReadBytes(long offset, long count)
@@ -23,5 +26,6 @@ namespace ZfsSharp.VirtualDevices
                 }
             }
         }
+
     }
 }

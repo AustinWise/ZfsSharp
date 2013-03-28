@@ -10,42 +10,15 @@ namespace ZfsSharp.VirtualDevices
     class HddVdev : Vdev
     {
         readonly HardDisk mHdd;
-        public HddVdev(HardDisk hdd)
+        public HddVdev(NvList config, LeafVdevInfo hdd)
+            : base(config)
         {
-            this.mHdd = hdd;
-
-            List<uberblock_t> blocks = new List<uberblock_t>();
-            for (long i = 0; i < 128; i++)
-            {
-                var offset = (128 << 10) + 1024 * i;
-                uberblock_t b;
-                hdd.Get<uberblock_t>(offset, out b);
-                if (b.Magic == uberblock_t.UbMagic)
-                    blocks.Add(b);
-            }
-            this.Uberblock = blocks.OrderByDescending(u => u.Txg).First();
-
-            using (var s = new MemoryStream(hdd.ReadBytes(16 << 10, 112 << 10)))
-                Config = new NvList(s);
-            if (Config.Get<ulong>("version") != 5000)
-            {
-                throw new NotSupportedException();
-            }
-            Guid = Config.Get<UInt64>("guid");
-
-            const int VDevLableSizeStart = 4 << 20;
-            const int VDevLableSizeEnd = 512 << 10;
-            hdd = OffsetHardDisk.Create(hdd, VDevLableSizeStart, hdd.Length - VDevLableSizeStart - VDevLableSizeEnd);
-            this.mHdd = hdd;
+            this.mHdd = hdd.HDD;
         }
 
         public override IEnumerable<byte[]> ReadBytes(long offset, long count)
         {
             yield return mHdd.ReadBytes(offset, count);
         }
-
-        public ulong Guid { get; private set; }
-        public uberblock_t Uberblock { get; private set; }
-        public NvList Config { get; private set; }
     }
 }
