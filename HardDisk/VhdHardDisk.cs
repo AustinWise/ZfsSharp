@@ -12,7 +12,7 @@ namespace ZfsSharp.HardDisks
 {
     static class VhdHardDisk
     {
-        #region Struct Crap
+        #region Structs
         [Flags]
         enum Features : int
         {

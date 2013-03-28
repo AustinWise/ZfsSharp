@@ -53,6 +53,7 @@
     <Compile Include="HardDisk\HardDisk.cs" />
     <Compile Include="HardDisk\MbrHardDisk.cs" />
     <Compile Include="HardDisk\OffsetHardDisk.cs" />
+    <Compile Include="HardDisk\VdiHardDisk.cs" />
     <Compile Include="Lzjb.cs" />
     <Compile Include="NvList.cs" />
     <Compile Include="HardDisk\VhdHardDisk.cs" />
