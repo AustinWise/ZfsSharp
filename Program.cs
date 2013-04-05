@@ -57,7 +57,6 @@ namespace ZfsSharp
         static Vdev[] CreateVdevTree(List<LeafVdevInfo> hdds)
         {
             var poolGuid = hdds.Select(h => h.Config.Get<ulong>("pool_guid")).Distinct().Single();
-            var topGuid = hdds.Select(h => h.Config.Get<ulong>("top_guid")).Distinct().Single();
 
             var hddMap = new Dictionary<ulong, LeafVdevInfo>();
             var innerVdevConfigs = new Dictionary<ulong, NvList>();
@@ -79,8 +78,6 @@ namespace ZfsSharp
             {
                 calculatedTopGuid += innerVdevs[i].Guid;
             }
-            if (calculatedTopGuid != topGuid)
-                throw new Exception("Missing vdev.");
 
             var ret = innerVdevs.OrderBy(v => v.ID).ToArray();
             for (uint i = 0; i < ret.Length; i++)
