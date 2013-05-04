@@ -28,10 +28,14 @@ namespace ZfsSharp
             this.mZio = zio;
 
             var rootDslObj = dmu.ReadFromObjectSet(mos, objectid);
+            if (rootDslObj.Type != dmu_object_type_t.DSL_DIR)
+                throw new NotSupportedException("Expected DSL_DIR dnode.");
             mDslDir = dmu.GetBonus<dsl_dir_phys_t>(rootDslObj);
             var rootDslProps = zap.Parse(dmu.ReadFromObjectSet(mos, mDslDir.props_zapobj));
 
             var rootDataSetObj = dmu.ReadFromObjectSet(mos, mDslDir.head_dataset_obj);
+            if (rootDataSetObj.Type != dmu_object_type_t.DSL_DATASET)
+                throw new Exception("Not a DSL_DIR.");
             mDataset = dmu.GetBonus<dsl_dataset_phys_t>(rootDataSetObj);
 
             mZfsObjset = zio.Get<objset_phys_t>(mDataset.bp);
