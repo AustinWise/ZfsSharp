@@ -51,6 +51,12 @@ namespace ZfsSharp
                 var vdev = new LeafVdevInfo(gpt);
                 ret.Add(vdev);
             }
+            foreach (var fi in new DirectoryInfo(dir).GetFiles("*.zfs"))
+            {
+                var file = new FileHardDisk(fi.FullName);
+                var vdev = new LeafVdevInfo(file);
+                ret.Add(vdev);
+            }
             return ret;
         }
 

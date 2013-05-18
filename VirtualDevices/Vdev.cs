@@ -29,6 +29,7 @@ namespace ZfsSharp.VirtualDevices
                 case "mirror":
                     return new MirrorVdev(config, leafs);
                 case "disk":
+                case "file":
                     return new HddVdev(config, leafs[config.Get<ulong>("guid")]);
                 default:
                     throw new NotSupportedException("Unknown type: " + type);
