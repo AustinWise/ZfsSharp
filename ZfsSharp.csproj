@@ -63,6 +63,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="VirtualDevices\HddVdev.cs" />
     <Compile Include="VirtualDevices\MirrorVdev.cs" />
+    <Compile Include="VirtualDevices\RaidzVdev.cs" />
     <Compile Include="VirtualDevices\Vdev.cs" />
     <Compile Include="Zap.cs" />
     <Compile Include="Zio.cs" />

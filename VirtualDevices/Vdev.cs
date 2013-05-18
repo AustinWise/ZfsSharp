@@ -31,6 +31,8 @@ namespace ZfsSharp.VirtualDevices
                 case "disk":
                 case "file":
                     return new HddVdev(config, leafs[config.Get<ulong>("guid")]);
+                case "raidz":
+                    return new RaidzVdev(config, leafs);
                 default:
                     throw new NotSupportedException("Unknown type: " + type);
             }
