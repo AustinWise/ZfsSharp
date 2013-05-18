@@ -65,7 +65,7 @@ namespace ZfsSharp
             {
                 mzap_ent_phys_t entry = (mzap_ent_phys_t)Marshal.PtrToStructure(new IntPtr(ptr + i), typeof(mzap_ent_phys_t));
                 if (string.IsNullOrEmpty(entry.Name))
-                    break;
+                    continue;
                 if (entry.CD != 0)
                     throw new NotImplementedException();
                 ret.Add(entry.Name, entry.Value);
