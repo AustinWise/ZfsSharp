@@ -280,6 +280,17 @@ namespace ZfsSharp
         /// <param name="ReadBlock">Given a block key, reads the block.</param>
         public static void MultiBlockCopy<T>(byte[] dest, long destOffset, long offset, long size, long blockSize, Func<long, T> GetBlockKey, BlockReader<T> ReadBlock)
         {
+            if (dest == null)
+                throw new ArgumentNullException("dest");
+            if (destOffset < 0)
+                throw new ArgumentOutOfRangeException("destOffset");
+            if (offset < 0)
+                throw new ArgumentOutOfRangeException("offset");
+            if (size < 0)
+                throw new ArgumentOutOfRangeException("size");
+            if (blockSize <= 0)
+                throw new ArgumentOutOfRangeException("blockSize");
+
             List<T> blockKeys = new List<T>();
             for (long i = offset; i < (offset + size); i += blockSize)
             {
