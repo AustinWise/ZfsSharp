@@ -127,7 +127,7 @@ namespace ZfsSharp
 
             for (int i = 0; i < varSizes.Length; i++)
             {
-                varSizes[i] = Program.ToStruct<short>((byte*)saHeader.sa_lengths, i * 2, bytes.Length - SaHdrLengthOffset);
+                varSizes[i] = Program.ToStruct<short>(bytes, SaHdrLengthOffset + i * 2);
             }
 
             var fieldOffset = layout.GetOffset(attr, varSizes);

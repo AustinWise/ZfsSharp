@@ -153,6 +153,13 @@ namespace ZfsSharp
         {
             Console.WriteLine(namePrefix + item.FullPath);
             var dir = item as Zpl.ZfsDirectory;
+            var file = item as Zpl.ZfsFile;
+
+            if (file != null)
+            {
+                file.GetContents();
+            }
+
             if (dir == null)
                 return;
             foreach (var d in dir.GetChildren())
@@ -247,14 +254,21 @@ namespace ZfsSharp
             startNdx = 0;
             cpyCount = blockSize;
             if (blockNdx == 0)
-                startNdx += (int)(dataOffset % blockSize);
-            if (blockNdx == totalBlocks - 1)
             {
-                cpyCount = (int)((dataOffset + dataSize) % blockSize);
-                if (cpyCount == 0)
-                    cpyCount = (int)blockSize;
+                startNdx += (dataOffset % blockSize);
                 cpyCount -= startNdx;
             }
+            if (blockNdx == totalBlocks - 1)
+            {
+                cpyCount = (dataOffset + dataSize);
+                if ((cpyCount % blockSize) == 0)
+                    cpyCount = blockSize;
+                cpyCount -= startNdx;
+            }
+
+            cpyCount = cpyCount % blockSize;
+            if (cpyCount == 0)
+                cpyCount = blockSize;
         }
 
         /// <summary>
@@ -292,7 +306,7 @@ namespace ZfsSharp
                 throw new ArgumentOutOfRangeException("blockSize");
 
             List<T> blockKeys = new List<T>();
-            for (long i = offset; i < (offset + size); i += blockSize)
+            for (long i = (offset / blockSize) * blockSize; i < (offset + size); i += blockSize)
             {
                 long blockId = i / blockSize;
                 blockKeys.Add(GetBlockKey(blockId));
@@ -305,7 +319,7 @@ namespace ZfsSharp
                 Program.GetMultiBlockCopyOffsets(i, blockKeys.Count, blockSize, offset, size, out startNdx, out cpyCount);
 
                 ReadBlock(blockKeys[i], dest, retNdx, startNdx, cpyCount);
-                retNdx += blockSize;
+                retNdx += cpyCount;
             }
         }
 

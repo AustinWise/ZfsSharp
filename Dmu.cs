@@ -293,7 +293,7 @@ namespace ZfsSharp
         [FieldOffset(0x10)]
         public long MaxBlkId;
         [FieldOffset(0x18)]
-        public UInt64 Used;
+        public UInt64 Used;  //TODO: consider checking this and doing something about it
 
         [FieldOffset(0x40)]
         public blkptr_t blkptr1;
