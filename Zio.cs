@@ -29,6 +29,8 @@ namespace ZfsSharp
 
         public byte[] Read(blkptr_t blkptr)
         {
+            if (blkptr.fill == 0)
+                throw new NotSupportedException("There is no data in this block pointer.");
             if (blkptr.birth == 0)
                 throw new NotSupportedException("Invalid block pointer: 0 birth txg.");
             if (blkptr.IsDedup)

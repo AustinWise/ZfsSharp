@@ -112,9 +112,42 @@ namespace ZfsSharp
             return GetAttr<long>(dn, zpl_attr_t.ZPL_SIZE);
         }
 
-        public unsafe T GetAttr<T>(dnode_phys_t dn, zpl_attr_t attr) where T : struct
+        public ZfsItemType GetFileType(dnode_phys_t dn)
+        {
+            var mode = GetAttr<long>(dn, zpl_attr_t.ZPL_MODE);
+            return (ZfsItemType)((mode >> 12) & 0xf);
+        }
+
+        public T GetAttr<T>(dnode_phys_t dn, zpl_attr_t attr) where T : struct
+        {
+            var bytes = GetAttrBytes(dn, attr);
+
+            return Program.ToStruct<T>(bytes);
+        }
+
+        public ArraySegment<byte> GetAttrBytes(dnode_phys_t dn, zpl_attr_t attr)
         {
             var bytes = mDmu.ReadBonus(dn);
+            ArraySegment<byte> ret;
+            if (GetAttrFromBytes(bytes, attr, out ret))
+            {
+                return ret;
+            }
+
+            if ((dn.Flags & DnodeFlags.SpillBlkptr) != 0 && dn.Spill.Type == dmu_object_type_t.SA)
+            {
+                bytes = mDmu.ReadSpill(dn);
+                if (GetAttrFromBytes(bytes, attr, out ret))
+                {
+                    return ret;
+                }
+            }
+
+            throw new KeyNotFoundException();
+        }
+
+        private bool GetAttrFromBytes(byte[] bytes, zpl_attr_t attr, out ArraySegment<byte> ret)
+        {
             var saHeader = Program.ToStruct<sa_hdr_phys_t>(bytes);
             saHeader.VerifyMagic();
 
@@ -123,8 +156,14 @@ namespace ZfsSharp
                 numberOfLengths += (saHeader.hdrsz - 8) >> 1;
 
             var layout = mAttrLayouts[saHeader.layout];
-            var varSizes = new short[layout.NumberOfVariableSizedFields];
 
+            if (!layout.ContainsAttr(attr))
+            {
+                ret = default(ArraySegment<byte>);
+                return false;
+            }
+
+            var varSizes = new short[layout.NumberOfVariableSizedFields];
             for (int i = 0; i < varSizes.Length; i++)
             {
                 varSizes[i] = Program.ToStruct<short>(bytes, SaHdrLengthOffset + i * 2);
@@ -133,14 +172,23 @@ namespace ZfsSharp
             var fieldOffset = layout.GetOffset(attr, varSizes);
             fieldOffset += saHeader.hdrsz;
 
-            if (mAttrSize[attr] != Marshal.SizeOf(typeof(T)))
-                throw new Exception("Unexpected size.");
+            var fieldSize = layout.GetFieldSize(attr, varSizes);
+            ret = new ArraySegment<byte>(bytes, fieldOffset, fieldSize);
+            return true;
+        }
 
-            return Program.ToStruct<T>(bytes, fieldOffset);
+        private byte[] GetSaBytes(dnode_phys_t dn)
+        {
+            if (dn.BonusType != dmu_object_type_t.SA)
+                throw new NotSupportedException();
+
+            var bonusBytes = mDmu.ReadBonus(dn);
+            return bonusBytes;
         }
 
         class SaLayout
         {
+            private Dictionary<zpl_attr_t, int> mVarSizeOffset = new Dictionary<zpl_attr_t, int>();
             private Dictionary<zpl_attr_t, int> mSizes;
             private zpl_attr_t[] mLayout;
             private int mNumberOfVariableSizedFields;
@@ -150,6 +198,12 @@ namespace ZfsSharp
                 mSizes = sizes;
                 mLayout = layout;
                 mNumberOfVariableSizedFields = layout.Select(attr => sizes[attr]).Count(size => size == 0);
+
+                var varSizeFields = mLayout.Where(a => sizes[a] == 0).ToArray();
+                for (int i = 0; i < varSizeFields.Length; i++)
+                {
+                    mVarSizeOffset[varSizeFields[i]] = i;
+                }
             }
 
             public int NumberOfVariableSizedFields
@@ -175,12 +229,70 @@ namespace ZfsSharp
                 }
                 throw new ArgumentOutOfRangeException();
             }
+
+            public int GetFieldSize(zpl_attr_t attrToGet, short[] variableFieldSizes)
+            {
+                if (variableFieldSizes.Length != mNumberOfVariableSizedFields)
+                    throw new ArgumentOutOfRangeException();
+                var size = mSizes[attrToGet];
+                if (size == 0)
+                {
+                    size = variableFieldSizes[mVarSizeOffset[attrToGet]];
+                }
+                return size;
+            }
+
+            public bool ContainsAttr(zpl_attr_t attr)
+            {
+                return mLayout.Any(a => a == attr);
+            }
+        }
+
+        public enum ZfsItemType
+        {
+            /// <summary>
+            /// Fifo
+            /// </summary>
+            S_IFIFO = 0x1,
+            /// <summary>
+            /// Character Special Device
+            /// </summary>
+            S_IFCHR = 0x2,
+            /// <summary>
+            /// Directory
+            /// </summary>
+            S_IFDIR = 0x4,
+            /// <summary>
+            /// Block special device
+            /// </summary>
+            S_IFBLK = 0x6,
+            /// <summary>
+            /// Regular file
+            /// </summary>
+            S_IFREG = 0x8,
+            /// <summary>
+            /// Symbolic Link
+            /// </summary>
+            S_IFLNK = 0xA,
+            /// <summary>
+            /// Socket
+            /// </summary>
+            S_IFSOCK = 0xC,
+            /// <summary>
+            /// Door
+            /// </summary>
+            S_IFDOOR = 0xD,
+            /// <summary>
+            /// Event Port
+            /// </summary>
+            S_IFPORT = 0xE,
         }
 
         public abstract class ZfsItem
         {
             protected readonly Zpl mZpl;
             protected readonly dnode_phys_t mDn;
+            protected readonly long mMode;
             public ZfsItem(Zpl zpl, ZfsDirectory parent, string name, dnode_phys_t dn)
             {
                 this.mZpl = zpl;
@@ -189,6 +301,8 @@ namespace ZfsSharp
                 this.mDn = dn;
                 if (mDn.Type != DmuType)
                     throw new NotSupportedException();
+
+                mMode = mZpl.GetAttr<long>(mDn, zpl_attr_t.ZPL_MODE);
             }
 
             public string Name { get; private set; }
@@ -220,6 +334,14 @@ namespace ZfsSharp
                 }
             }
 
+            public ZfsItemType Type
+            {
+                get
+                {
+                    return (ZfsItemType)((mMode >> 12) & 0xf);
+                }
+            }
+
             public override string ToString()
             {
                 return Name;
@@ -237,6 +359,23 @@ namespace ZfsSharp
             {
                 return mZpl.mDmu.Read(mDn, 0, mZpl.GetAttr<long>(mDn, zpl_attr_t.ZPL_SIZE));
             }
+
+            protected override dmu_object_type_t DmuType
+            {
+                get { return dmu_object_type_t.PLAIN_FILE_CONTENTS; }
+            }
+        }
+
+        public class ZfsSymLink : ZfsItem
+        {
+            public ZfsSymLink(Zpl zpl, ZfsDirectory parent, string name, dnode_phys_t dn)
+                : base(zpl, parent, name, dn)
+            {
+                var bytes = zpl.GetAttrBytes(dn, zpl_attr_t.ZPL_SYMLINK);
+                PointsTo = Encoding.ASCII.GetString(bytes.Array, bytes.Offset, bytes.Count);
+            }
+
+            public string PointsTo { get; private set; }
 
             protected override dmu_object_type_t DmuType
             {
@@ -281,7 +420,21 @@ namespace ZfsSharp
                     if (dn.Type == dmu_object_type_t.DIRECTORY_CONTENTS)
                         yield return new ZfsDirectory(mZpl, this, name, dn);
                     else if (dn.Type == dmu_object_type_t.PLAIN_FILE_CONTENTS)
-                        yield return new ZfsFile(mZpl, this, name, dn);
+                    {
+                        var type = mZpl.GetFileType(dn);
+                        if (type == ZfsItemType.S_IFREG)
+                        {
+                            yield return new ZfsFile(mZpl, this, name, dn);
+                        }
+                        else if (type == ZfsItemType.S_IFLNK)
+                        {
+                            yield return new ZfsSymLink(mZpl, this, name, dn);
+                        }
+                        else
+                        {
+                            //TODO: other file types
+                        }
+                    }
                     else
                         throw new NotSupportedException();
                 }

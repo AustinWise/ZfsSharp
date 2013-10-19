@@ -179,6 +179,13 @@ namespace ZfsSharp
                 return ToStruct<T>(ptr, offset, bytes.Length);
         }
 
+        public static T ToStruct<T>(ArraySegment<byte> bytes) where T : struct
+        {
+            if (Marshal.SizeOf(typeof(T)) != bytes.Count)
+                throw new ArgumentOutOfRangeException();
+            return ToStruct<T>(bytes.Array, bytes.Offset);
+        }
+
         public unsafe static T ToStruct<T>(byte* ptr, long offset, long ptrLength) where T : struct
         {
             if (offset < 0 || ptrLength <= 0)

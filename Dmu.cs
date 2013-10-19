@@ -26,10 +26,30 @@ namespace ZfsSharp
             return (T)Marshal.PtrToStructure(new IntPtr(dn.Bonus + bonusOffset), typeof(T));
         }
 
+        public byte[] ReadSpill(dnode_phys_t dn)
+        {
+            if ((dn.Flags & DnodeFlags.SpillBlkptr) == 0)
+            {
+                throw new NotSupportedException("DNode does not have a spill block pointer.");
+            }
+
+            var spill = dn.Spill;
+            if (spill.fill != 1)
+            {
+                throw new NotImplementedException("Only spill pointers with fill = 1 supported.");
+            }
+
+            return mZio.Read(spill);
+        }
+
         unsafe public byte[] ReadBonus(dnode_phys_t dn)
         {
             int bonusOffset = (dn.NBlkPtrs - 1) * sizeof(blkptr_t);
             int bonusSize = dnode_phys_t.DN_MAX_BONUSLEN - bonusOffset;
+            if ((dn.Flags & DnodeFlags.SpillBlkptr) != 0)
+            {
+                bonusSize -= sizeof(blkptr_t);
+            }
 
             byte[] bonus = new byte[bonusSize];
             Marshal.Copy(new IntPtr(dn.Bonus + bonusOffset), bonus, 0, bonusSize);
@@ -238,7 +258,8 @@ namespace ZfsSharp
     {
         None = 0,
         UsedBytes = 1,
-        SpillBlkptr = 2,
+        UserUsed_Accounted = 2,
+        SpillBlkptr = 4,
     }
 
     [StructLayout(LayoutKind.Explicit, Pack = 1)]
