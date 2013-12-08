@@ -52,8 +52,8 @@ namespace ZfsSharp.HardDisks
         }
 
         readonly HardDisk mHdd;
-        readonly uint mDataOffset;
-        readonly uint mBlockSize;
+        readonly long mDataOffset;
+        readonly long mBlockSize;
         readonly uint[] mBlockLocations;
 
         unsafe public VdiHardDisk(HardDisk hdd)
@@ -88,10 +88,10 @@ namespace ZfsSharp.HardDisks
 
         public override void ReadBytes(byte[] array, long arrayOffset, long offset, long count)
         {
-            Program.MultiBlockCopy<uint>(array, arrayOffset, offset, count, mBlockSize, getBlockOffset, readBlock);
+            Program.MultiBlockCopy<long>(array, arrayOffset, offset, count, mBlockSize, getBlockOffset, readBlock);
         }
 
-        private uint getBlockOffset(long blockId)
+        private long getBlockOffset(long blockId)
         {
             uint blockOffset = mBlockLocations[blockId];
             if (blockOffset == ~0u)
@@ -99,7 +99,7 @@ namespace ZfsSharp.HardDisks
             return mDataOffset + blockOffset * mBlockSize;
         }
 
-        void readBlock(uint blockOffset, byte[] array, long arrayOffset, long blockStartNdx, long blockCpyCount)
+        void readBlock(long blockOffset, byte[] array, long arrayOffset, long blockStartNdx, long blockCpyCount)
         {
             mHdd.ReadBytes(array, arrayOffset, blockOffset + blockStartNdx, blockCpyCount);
         }
