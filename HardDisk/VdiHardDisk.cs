@@ -73,7 +73,7 @@ namespace ZfsSharp.HardDisks
                 throw new NotImplementedException("Only dynamic is supported.");
 
             mBlockLocations = new uint[head.BlocksInHdd];
-            for (uint i = 0; i < head.BlocksInHdd; i++)
+            for (long i = 0; i < head.BlocksInHdd; i++)
             {
                 hdd.Get<uint>(head.OffsetBlocks + i * 4, out mBlockLocations[i]);
             }

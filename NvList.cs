@@ -7,6 +7,11 @@ using System.Text;
 
 namespace ZfsSharp
 {
+    //based on usr\src\uts\common\rpc\xdr.c
+
+    /// <summary>
+    /// Decodes an XDR representation of a NVList.
+    /// </summary>
     class NvList : IEnumerable<KeyValuePair<string, object>>
     {
         enum NvDataType
@@ -109,6 +114,9 @@ namespace ZfsSharp
                             array[i] = new NvList(r);
                         }
                         val = array;
+                        break;
+                    case NvDataType.BOOLEAN:
+                        val = r.ReadInt32() != 0;
                         break;
                     default:
                         throw new NotImplementedException();
