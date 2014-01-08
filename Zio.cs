@@ -27,6 +27,15 @@ namespace ZfsSharp
             mCompression.Add(zio_compress.OFF, new NoCompression());
         }
 
+        //a bit of a layering violation
+        public void InitMetaSlabs(objset_phys_t mos, Dmu dmu)
+        {
+            foreach (var v in mVdevs)
+            {
+                v.InitMetaSlabs(mos, dmu);
+            }
+        }
+
         public byte[] Read(blkptr_t blkptr)
         {
             if (blkptr.fill == 0)

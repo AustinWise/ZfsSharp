@@ -1,14 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
+using System.Diagnostics;
 using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
-using ZfsSharp.HardDisks;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
 using ZfsSharp.VirtualDevices;
 
 namespace ZfsSharp
@@ -30,7 +27,7 @@ namespace ZfsSharp
     {
         static void Main(string[] args)
         {
-            //args = new string[] { @"D:\VPC\SmartOsRaid\" };
+            args = new string[] { @"D:\VPC\SmartOsRaid\" };
             if (args.Length == 0)
             {
                 Console.WriteLine("Usage: ZfsSharp.exe <a directory containing VHD, VDI, or ZFS files>");
@@ -45,12 +42,17 @@ namespace ZfsSharp
             var zap = new Zap(dmu);
             Dsl dsl = new Dsl(hdds[0].Uberblock.rootbp, zap, dmu, zio);
 
+            //return;
+
             var rootZpl = dsl.GetRootDataSet();
 
             var root = rootZpl.Root;
             var children = root.GetChildren().ToArray();
 
-            Console.WriteLine();
+            //var sm = rootZpl.GetFileContents("/spacemap.txt");
+            //System.IO.File.WriteAllBytes("spacemap.txt", rootZpl.GetFileContents("/spacemap.txt"));
+
+            //Console.WriteLine();
 
             foreach (var ds in dsl.ListDataSet())
             {

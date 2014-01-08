@@ -9,27 +9,35 @@ namespace ZfsSharp
 {
     class MetaSlabs
     {
+        //TODO: store each meta slab's range map separately
+        RangeMap mRangeMap = new RangeMap();
         objset_phys_t mMos;
         Dmu mDmu;
 
-        public MetaSlabs(objset_phys_t mos, Dmu dmu, Vdev vdev)
+        public MetaSlabs(objset_phys_t mos, Dmu dmu, long metaSlabArray, int metaSlabShift, int aShift)
         {
             mMos = mos;
             mDmu = dmu;
 
-            var dn = dmu.ReadFromObjectSet(mos, (long)vdev.MetaSlabArray.Value);
+            var dn = dmu.ReadFromObjectSet(mos, metaSlabArray);
             var someBytes = dmu.Read(dn);
-            int metaSlabShift = (int)vdev.MetaSlabShift;
-            int aShift = (int)vdev.AShift;
 
-            for (int i = 0; i < someBytes.Length; i += sizeof(long))
+            long[] ids = new long[someBytes.Length / 8];
+            Buffer.BlockCopy(someBytes, 0, ids, 0, someBytes.Length);
+
+            for (int i = 0; i < ids.Length; i++)
             {
-                var id = Program.ToStruct<long>(someBytes, i);
+                var id = ids[i];
                 if (id == 0)
                     continue;
 
                 LoadEntrysForMetaSlab(id, (ulong)i << metaSlabShift, 1UL << metaSlabShift, aShift);
             }
+        }
+
+        public bool ContainsRange(long offset, long range)
+        {
+            return mRangeMap.ContainsRange((ulong)offset, (ulong)range);
         }
 
         void LoadEntrysForMetaSlab(long dnEntry, ulong start, ulong size, int sm_shift)
@@ -44,15 +52,23 @@ namespace ZfsSharp
                 throw new Exception();
 
             var someBytes = mDmu.Read(dn, 0, head.smo_objsize);
-            var entries = new List<spaceMapEntry>();
             for (int i = 0; i < someBytes.Length; i += 8)
             {
                 var ent = Program.ToStruct<spaceMapEntry>(someBytes, i);
                 if (ent.IsDebug)
                     continue;
-                //Console.WriteLine("{0}: {1} {2}", ent.Type, (ent.Offset << sm_shift) + start, ent.Run << sm_shift);
-                Console.WriteLine("{0} {1:x8} {2:x6}", ent.Type, ent.Offset << sm_shift, ent.Run << sm_shift);
-                entries.Add(ent);
+
+                ulong offset = (ent.Offset << sm_shift) + start;
+                ulong range = ent.Run << sm_shift;
+                //Console.WriteLine("\t    [{4,6}]    {0}  range: {1:x10}-{2:x10}  size: {3:x6}", ent.Type, offset, offset + range, range, i / 8);
+                if (ent.Type == SpaceMapEntryType.A)
+                {
+                    mRangeMap.AddRange(offset, range);
+                }
+                else if (ent.Type == SpaceMapEntryType.F)
+                {
+                    mRangeMap.RemoveRange(offset, range);
+                }
             }
         }
 

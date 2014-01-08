@@ -7,6 +7,8 @@ namespace ZfsSharp.VirtualDevices
 {
     abstract class Vdev
     {
+        private MetaSlabs mMetaSlabs = null;
+
         protected Vdev(NvList config)
         {
             this.Guid = config.Get<ulong>("guid");
@@ -18,7 +20,23 @@ namespace ZfsSharp.VirtualDevices
             ASize = config.GetOptional<ulong>("asize");
         }
 
-        public abstract IEnumerable<byte[]> ReadBytes(long offset, long count);
+        //a bit of a layering violation
+        public void InitMetaSlabs(objset_phys_t mos, Dmu dmu)
+        {
+            mMetaSlabs = new MetaSlabs(mos, dmu, (long)MetaSlabArray.Value, (int)MetaSlabShift.Value, (int)AShift.Value);
+        }
+
+        public IEnumerable<byte[]> ReadBytes(long offset, long count)
+        {
+            if (mMetaSlabs != null && !mMetaSlabs.ContainsRange(offset, count))
+            {
+                throw new Exception("Reading unallocated data.");
+            }
+            return ReadBytesCore(offset, count);
+        }
+
+        protected abstract IEnumerable<byte[]> ReadBytesCore(long offset, long count);
+
         public ulong Guid
         {
             get;

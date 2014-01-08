@@ -24,7 +24,7 @@ namespace ZfsSharp.VirtualDevices
             mUnitShift = (int)config.Get<UInt64>("ashift");
         }
 
-        public override IEnumerable<byte[]> ReadBytes(long offset, long count)
+        protected override IEnumerable<byte[]> ReadBytesCore(long offset, long count)
         {
             var rm = vdev_raidz_map_alloc((ulong)count, (ulong)offset, mUnitShift, (ulong)mVdevs.Length, mNparity);
             var ret = new byte[count];

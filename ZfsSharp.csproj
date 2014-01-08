@@ -70,6 +70,7 @@
     <Compile Include="NvListBinaryReader.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RangeMap.cs" />
     <Compile Include="VirtualDevices\HddVdev.cs" />
     <Compile Include="VirtualDevices\MirrorVdev.cs" />
     <Compile Include="VirtualDevices\RaidzVdev.cs" />

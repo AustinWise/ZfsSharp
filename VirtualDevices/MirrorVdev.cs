@@ -16,7 +16,7 @@ namespace ZfsSharp.VirtualDevices
                 .ToArray();
         }
 
-        public override IEnumerable<byte[]> ReadBytes(long offset, long count)
+        protected override IEnumerable<byte[]> ReadBytesCore(long offset, long count)
         {
             return mVdevs.SelectMany(v => v.ReadBytes(offset, count));
         }

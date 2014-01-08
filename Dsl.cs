@@ -30,15 +30,23 @@ namespace ZfsSharp
             if (mMos.Type != dmu_objset_type_t.DMU_OST_META)
                 throw new Exception("Given block pointer did not point to the MOS.");
 
+            mZio.InitMetaSlabs(mMos, dmu);
+            //the second time we will make sure that space maps contain themselves
+            mZio.InitMetaSlabs(mMos, dmu);
+
             dnode_phys_t objectDirectory = dmu.ReadFromObjectSet(mMos, 1);
             mObjDir = zap.GetDirectoryEntries(objectDirectory);
 
             var configDn = dmu.ReadFromObjectSet(mMos, mObjDir[CONFIG]);
             mConfig = new NvList(new MemoryStream(dmu.Read(configDn)));
 
-            var fr = mZap.Parse(dmu.ReadFromObjectSet(mMos, mObjDir["features_for_read"]));
-            var fw = mZap.Parse(dmu.ReadFromObjectSet(mMos, mObjDir["features_for_write"]));
+            var fr = mZap.GetDirectoryEntries(dmu.ReadFromObjectSet(mMos, mObjDir["features_for_read"]));
+            var fw = mZap.GetDirectoryEntries(dmu.ReadFromObjectSet(mMos, mObjDir["features_for_write"]));
             var ff = mZap.Parse(dmu.ReadFromObjectSet(mMos, mObjDir["feature_descriptions"])).ToDictionary(kvp => kvp.Key, kvp => Encoding.ASCII.GetString((byte[])kvp.Value));
+            if (fw.ContainsKey("com.delphix:enabled_txg") && fw["com.delphix:enabled_txg"] > 0)
+            {
+                var fe = mZap.GetDirectoryEntries(dmu.ReadFromObjectSet(mMos, mObjDir["feature_enabled_txg"]));
+            }
         }
 
         public Zpl GetDataset(long objid)
