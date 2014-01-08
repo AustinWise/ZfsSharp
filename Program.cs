@@ -26,78 +26,19 @@ namespace ZfsSharp
         public const ulong UbMagic = 0x00bab10c;
     }
 
-    class Program
+    static class Program
     {
-        static List<LeafVdevInfo> GetLeafVdevs(string dir)
-        {
-            var virtualHardDisks = new List<HardDisk>();
-            foreach (var fi in new DirectoryInfo(dir).GetFiles("*.vhd"))
-            {
-                var file = new FileHardDisk(fi.FullName);
-                var vhd = VhdHardDisk.Create(file);
-                virtualHardDisks.Add(vhd);
-            }
-            foreach (var fi in new DirectoryInfo(dir).GetFiles("*.vdi"))
-            {
-                var file = new FileHardDisk(fi.FullName);
-                var vhd = new VdiHardDisk(file);
-                virtualHardDisks.Add(vhd);
-            }
-
-            var ret = new List<LeafVdevInfo>();
-            foreach (var hdd in virtualHardDisks)
-            {
-                var gpt = new GptHardDrive(hdd);
-                var vdev = new LeafVdevInfo(gpt);
-                ret.Add(vdev);
-            }
-            foreach (var fi in new DirectoryInfo(dir).GetFiles("*.zfs"))
-            {
-                var file = new FileHardDisk(fi.FullName);
-                var vdev = new LeafVdevInfo(file);
-                ret.Add(vdev);
-            }
-            return ret;
-        }
-
-        static Vdev[] CreateVdevTree(List<LeafVdevInfo> hdds)
-        {
-            var poolGuid = hdds.Select(h => h.Config.Get<ulong>("pool_guid")).Distinct().Single();
-
-            var hddMap = new Dictionary<ulong, LeafVdevInfo>();
-            var innerVdevConfigs = new Dictionary<ulong, NvList>();
-            foreach (var hdd in hdds)
-            {
-                hddMap.Add(hdd.Config.Get<ulong>("guid"), hdd);
-                var vdevTree = hdd.Config.Get<NvList>("vdev_tree");
-                innerVdevConfigs[vdevTree.Get<ulong>("guid")] = vdevTree;
-            }
-
-            var innerVdevs = new List<Vdev>();
-            foreach (var kvp in innerVdevConfigs)
-            {
-                innerVdevs.Add(Vdev.Create(kvp.Value, hddMap));
-            }
-
-            ulong calculatedTopGuid = 0;
-            for (int i = 0; i < innerVdevs.Count; i++)
-            {
-                calculatedTopGuid += innerVdevs[i].Guid;
-            }
-
-            var ret = innerVdevs.OrderBy(v => v.ID).ToArray();
-            for (uint i = 0; i < ret.Length; i++)
-            {
-                if (ret[i].ID != i)
-                    throw new Exception("Missing vdev.");
-            }
-            return ret;
-        }
-
         static void Main(string[] args)
         {
-            var hdds = GetLeafVdevs(@"D:\VPC\SmartOs4\");
-            var vdevs = CreateVdevTree(hdds);
+            //args = new string[] { @"D:\VPC\SmartOsRaid\" };
+            if (args.Length == 0)
+            {
+                Console.WriteLine("Usage: ZfsSharp.exe <a directory containing VHD, VDI, or ZFS files>");
+                return;
+            }
+
+            var hdds = LeafVdevInfo.GetLeafVdevs(args[0]);
+            var vdevs = Vdev.CreateVdevTree(hdds);
 
             Zio zio = new Zio(vdevs);
             var dmu = new Dmu(zio);
@@ -105,8 +46,6 @@ namespace ZfsSharp
             Dsl dsl = new Dsl(hdds[0].Uberblock.rootbp, zap, dmu, zio);
 
             var rootZpl = dsl.GetRootDataSet();
-            //var fileContents = Encoding.ASCII.GetString(rootZpl.GetFileContents("/currbooted"));
-            //var fileContents2 = Encoding.ASCII.GetString(rootZpl.GetFileContents("/global/asdf"));
 
             var root = rootZpl.Root;
             var children = root.GetChildren().ToArray();
@@ -123,6 +62,7 @@ namespace ZfsSharp
                 //TODO: a better way of detecting the type of dataset
                 if (ds.Key.Contains("$MOS") || ds.Key.Contains("$FREE") || ds.Key.Contains("$ORIGIN") || ds.Key.Contains("/dump") || ds.Key.Contains("/swap"))
                     continue;
+
                 var zpl = dsl.GetDataset(ds.Value);
                 printContent(ds.Key, zpl.Root);
 
@@ -134,7 +74,6 @@ namespace ZfsSharp
              * TODO:
              *  DSL
              *  Complete Fat ZAP
-             *  ZPL
              */
 
             Console.WriteLine();
@@ -355,9 +294,6 @@ namespace ZfsSharp
         public const int SPA_MAXBLOCKSHIFT = 17;
         const long SPA_MINBLOCKSIZE = (1L << SPA_MINBLOCKSHIFT);
         const long SPA_MAXBLOCKSIZE = (1L << SPA_MAXBLOCKSHIFT);
-
-        const string ROOT_DATASET = "root_dataset";
-        const string CONFIG = "config";
     }
 
 

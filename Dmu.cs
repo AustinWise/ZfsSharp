@@ -62,7 +62,6 @@ namespace ZfsSharp
             return Program.ToStruct<dnode_phys_t>(dnStuff);
         }
 
-        //TODO: fix the off-by-one errors that are problably in here
         public byte[] Read(dnode_phys_t dn, long offset, long size)
         {
             if (offset < 0 || size < 0)

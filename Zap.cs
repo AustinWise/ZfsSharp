@@ -235,8 +235,6 @@ namespace ZfsSharp
             throw new Exception();
         }
 
-        //ulong hashZap(ref zap_phys_t header
-
         enum ZapBlockType : long
         {
             LEAF = ((1L << 63) + 0),

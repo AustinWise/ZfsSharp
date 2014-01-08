@@ -41,5 +41,37 @@ namespace ZfsSharp
         public uberblock_t Uberblock { get; private set; }
         public HardDisk HDD { get; private set; }
         public NvList Config { get; private set; }
+
+        public static List<LeafVdevInfo> GetLeafVdevs(string dir)
+        {
+            var virtualHardDisks = new List<HardDisk>();
+            foreach (var fi in new DirectoryInfo(dir).GetFiles("*.vhd"))
+            {
+                var file = new FileHardDisk(fi.FullName);
+                var vhd = VhdHardDisk.Create(file);
+                virtualHardDisks.Add(vhd);
+            }
+            foreach (var fi in new DirectoryInfo(dir).GetFiles("*.vdi"))
+            {
+                var file = new FileHardDisk(fi.FullName);
+                var vhd = new VdiHardDisk(file);
+                virtualHardDisks.Add(vhd);
+            }
+
+            var ret = new List<LeafVdevInfo>();
+            foreach (var hdd in virtualHardDisks)
+            {
+                var gpt = new GptHardDrive(hdd);
+                var vdev = new LeafVdevInfo(gpt);
+                ret.Add(vdev);
+            }
+            foreach (var fi in new DirectoryInfo(dir).GetFiles("*.zfs"))
+            {
+                var file = new FileHardDisk(fi.FullName);
+                var vdev = new LeafVdevInfo(file);
+                ret.Add(vdev);
+            }
+            return ret;
+        }
     }
 }

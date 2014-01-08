@@ -48,5 +48,39 @@ namespace ZfsSharp.VirtualDevices
             }
             throw new NotImplementedException();
         }
+
+        public static Vdev[] CreateVdevTree(List<LeafVdevInfo> hdds)
+        {
+            var poolGuid = hdds.Select(h => h.Config.Get<ulong>("pool_guid")).Distinct().Single();
+
+            var hddMap = new Dictionary<ulong, LeafVdevInfo>();
+            var innerVdevConfigs = new Dictionary<ulong, NvList>();
+            foreach (var hdd in hdds)
+            {
+                hddMap.Add(hdd.Config.Get<ulong>("guid"), hdd);
+                var vdevTree = hdd.Config.Get<NvList>("vdev_tree");
+                innerVdevConfigs[vdevTree.Get<ulong>("guid")] = vdevTree;
+            }
+
+            var innerVdevs = new List<Vdev>();
+            foreach (var kvp in innerVdevConfigs)
+            {
+                innerVdevs.Add(Vdev.Create(kvp.Value, hddMap));
+            }
+
+            ulong calculatedTopGuid = 0;
+            for (int i = 0; i < innerVdevs.Count; i++)
+            {
+                calculatedTopGuid += innerVdevs[i].Guid;
+            }
+
+            var ret = innerVdevs.OrderBy(v => v.ID).ToArray();
+            for (uint i = 0; i < ret.Length; i++)
+            {
+                if (ret[i].ID != i)
+                    throw new Exception("Missing vdev.");
+            }
+            return ret;
+        }
     }
 }
