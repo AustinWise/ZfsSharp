@@ -19,6 +19,8 @@ namespace ZfsSharp
 
             var dn = dmu.ReadFromObjectSet(mos, (long)vdev.MetaSlabArray.Value);
             var someBytes = dmu.Read(dn);
+            int metaSlabShift = (int)vdev.MetaSlabShift;
+            int aShift = (int)vdev.AShift;
 
             for (int i = 0; i < someBytes.Length; i += sizeof(long))
             {
@@ -26,7 +28,7 @@ namespace ZfsSharp
                 if (id == 0)
                     continue;
 
-                LoadEntrysForMetaSlab(id, (ulong)i << vdev.MetaSlabShift, 1UL << vdev.MetaSlabShift, vdev.AShift);
+                LoadEntrysForMetaSlab(id, (ulong)i << metaSlabShift, 1UL << metaSlabShift, aShift);
             }
         }
 

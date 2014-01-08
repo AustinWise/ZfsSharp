@@ -130,6 +130,13 @@ namespace ZfsSharp
             return (T)mVals[name];
         }
 
+        public T? GetOptional<T>(string name) where T : struct
+        {
+            if (!mVals.ContainsKey(name))
+                return new Nullable<T>();
+            return (T)mVals[name];
+        }
+
         public IEnumerator<KeyValuePair<string, object>> GetEnumerator()
         {
             return mVals.GetEnumerator();
