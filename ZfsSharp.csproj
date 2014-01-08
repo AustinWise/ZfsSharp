@@ -45,6 +45,14 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="-\Guard.cs" />
+    <Compile Include="-\System\DataStructures\AvlTree.cs" />
+    <Compile Include="-\System\DataStructures\AvlTreeNode.cs" />
+    <Compile Include="-\System\DataStructures\BinaryTreeBase.cs" />
+    <Compile Include="-\System\DataStructures\BinaryTreeNode.cs" />
+    <Compile Include="-\System\DataStructures\FuncComparer.cs" />
+    <Compile Include="-\System\IComparableExtensions.cs" />
+    <Compile Include="-\Throw.cs" />
     <Compile Include="Dmu.cs" />
     <Compile Include="Dsl.cs" />
     <Compile Include="Flecter4.cs" />
@@ -69,6 +77,9 @@
     <Compile Include="Zap.cs" />
     <Compile Include="Zio.cs" />
     <Compile Include="Zpl.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
