@@ -115,8 +115,13 @@ namespace ZfsSharp
 
             foreach (var ds in dsl.ListDataSet())
             {
+                Console.WriteLine("{0}: {1}", ds.Key, ds.Value);
+            }
+
+            foreach (var ds in dsl.ListDataSet())
+            {
                 //TODO: a better way of detecting the type of dataset
-                if (ds.Key.Contains("$") || ds.Key.Contains("/dump") || ds.Key.Contains("/swap"))
+                if (ds.Key.Contains("$MOS") || ds.Key.Contains("$FREE") || ds.Key.Contains("$ORIGIN") || ds.Key.Contains("/dump") || ds.Key.Contains("/swap"))
                     continue;
                 var zpl = dsl.GetDataset(ds.Value);
                 printContent(ds.Key, zpl.Root);
@@ -217,7 +222,7 @@ namespace ZfsSharp
             { typeof(uint), 4 },
             { typeof(long), 8 },
             { typeof(ulong), 8 },
-            { typeof(Guid), 16 }, //TODO: determine if a GUID should really be byte swapped this way
+            { typeof(Guid), 16 },
         };
 
         static void ByteSwapField<T>(string fieldName, Type fieldType, byte[] byteArray) where T : struct

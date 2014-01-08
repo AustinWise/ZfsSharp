@@ -157,6 +157,22 @@ namespace ZfsSharp
         fixed ulong zh_pad[3];
     }
 
+    enum dmu_object_byteswap
+    {
+        DMU_BSWAP_UINT8,
+        DMU_BSWAP_UINT16,
+        DMU_BSWAP_UINT32,
+        DMU_BSWAP_UINT64,
+        DMU_BSWAP_ZAP,
+        DMU_BSWAP_DNODE,
+        DMU_BSWAP_OBJSET,
+        DMU_BSWAP_ZNODE,
+        DMU_BSWAP_OLDACL,
+        DMU_BSWAP_ACL,
+
+        DMU_BSWAP_NUMFUNCS
+    }
+
     enum dmu_object_type_t : byte
     {
         NONE,
@@ -286,6 +302,25 @@ namespace ZfsSharp
         const long DN_MAX_OBJECT = (1L << DN_MAX_OBJECT_SHIFT);
         public const int DN_ZERO_BONUSLEN = (DN_MAX_BONUSLEN + 1);
         const int DN_KILL_SPILLBLK = (1);
+
+        /*
+         * Type
+         */
+
+        public bool IsNewType
+        {
+            get { return ((uint)Type & 0x80) != 0; }
+        }
+
+        public bool IsNewTypeMetaData
+        {
+            get { return ((uint)Type & 0x40) != 0; }
+        }
+
+        public dmu_object_byteswap NewType
+        {
+            get { return (dmu_object_byteswap)((uint)Type & 0x3f); }
+        }
 
         /*
          * Fields

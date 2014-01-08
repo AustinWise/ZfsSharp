@@ -11,6 +11,18 @@ namespace ZfsSharp.VirtualDevices
         {
             this.Guid = config.Get<ulong>("guid");
             this.ID = config.Get<ulong>("id");
+
+            var metaslabs = config.Where(c => c.Key == "metaslab_array").Select(c => (ulong)c.Value).ToArray();
+            if (metaslabs.Length == 0)
+                MetaSlabArray = null;
+            else if (metaslabs.Length == 1)
+                MetaSlabArray = metaslabs[0];
+            else
+                throw new NotSupportedException();
+
+            MetaSlabShift = (int)config.Get<ulong>("metaslab_shift");
+            AShift = (int)config.Get<ulong>("ashift");
+            ASize = config.Get<ulong>("asize");
         }
 
         public abstract IEnumerable<byte[]> ReadBytes(long offset, long count);
@@ -20,6 +32,11 @@ namespace ZfsSharp.VirtualDevices
             private set;
         }
         public ulong ID { get; private set; }
+
+        public ulong? MetaSlabArray { get; private set; }
+        public int MetaSlabShift { get; private set; }
+        public int AShift { get; private set; }
+        public ulong ASize { get; private set; }
 
         public static Vdev Create(NvList config, Dictionary<ulong, LeafVdevInfo> leafs)
         {

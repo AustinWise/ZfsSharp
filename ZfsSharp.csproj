@@ -56,6 +56,7 @@
     <Compile Include="HardDisk\VdiHardDisk.cs" />
     <Compile Include="LeafVdevInfo.cs" />
     <Compile Include="Lzjb.cs" />
+    <Compile Include="MetaSlabs.cs" />
     <Compile Include="NvList.cs" />
     <Compile Include="HardDisk\VhdHardDisk.cs" />
     <Compile Include="NvListBinaryReader.cs" />

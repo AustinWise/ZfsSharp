@@ -33,10 +33,33 @@ namespace ZfsSharp
             mDslDir = dmu.GetBonus<dsl_dir_phys_t>(rootDslObj);
             var rootDslProps = zap.Parse(dmu.ReadFromObjectSet(mos, mDslDir.props_zapobj));
 
+            var children = zap.Parse(mDmu.ReadFromObjectSet(mos, mDslDir.child_dir_zapobj));
+            Dictionary<string, long> clones;
+            if (mDslDir.clones != 0)
+            {
+                clones = zap.GetDirectoryEntries(mDmu.ReadFromObjectSet(mos, mDslDir.clones));
+                Console.WriteLine();
+            }
+
+            if (mDslDir.head_dataset_obj == 0)
+                throw new Exception("No head dataset.");
             var rootDataSetObj = dmu.ReadFromObjectSet(mos, mDslDir.head_dataset_obj);
             if (rootDataSetObj.Type != dmu_object_type_t.DSL_DATASET)
                 throw new Exception("Not a DSL_DIR.");
             mDataset = dmu.GetBonus<dsl_dataset_phys_t>(rootDataSetObj);
+
+            if (mDataset.prev_snap_obj != 0)
+            {
+                var dn = mDmu.ReadFromObjectSet(mos, mDataset.prev_snap_obj);
+                var moreDs = dmu.GetBonus<dsl_dataset_phys_t>(dn);
+                Console.WriteLine();
+            }
+
+            if (mDataset.props_obj != 0)
+            {
+                var someProps = mZap.Parse(mDmu.ReadFromObjectSet(mos, mDataset.props_obj));
+                Console.WriteLine();
+            }
 
             mZfsObjset = zio.Get<objset_phys_t>(mDataset.bp);
             if (mZfsObjset.Type != dmu_objset_type_t.DMU_OST_ZFS)

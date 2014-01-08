@@ -205,13 +205,22 @@ namespace ZfsSharp.HardDisks
             private long getBlockOffset(long blockId)
             {
                 long blockOffset = mBat[blockId];
-                if (blockOffset == 0xffffffffL)
-                    throw new Exception("Missing block.");
+                if (blockOffset == -1)
+                    return -1;
                 return blockOffset * 512;
             }
 
             void readBlock(long blockOffset, byte[] array, long arrayOffset, long blockStartNdx, long blockCpyCount)
             {
+                if (blockOffset == -1)
+                {
+                    for (int i = 0; i < blockCpyCount; i++)
+                    {
+                        array[arrayOffset + i] = 0;
+                    }
+                    return;
+                }
+
                 const int SECTOR_SIZE = 512;
                 var numberOfSectors = mBlockSize / SECTOR_SIZE;
                 var ba = new BitArray(mHdd.ReadBytes(blockOffset, numberOfSectors / 8));

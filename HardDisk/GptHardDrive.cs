@@ -60,7 +60,6 @@ namespace ZfsSharp.HardDisks
         {
             const int NameSize = 72;
 
-            //TODO: in all liklyhood the layout of a GUID is stable, but we should check anyways
             public Guid Type;
             public Guid ID;
             public long FirstLba;
@@ -115,7 +114,10 @@ namespace ZfsSharp.HardDisks
             List<PartitionEntry> parts = new List<PartitionEntry>();
             for (int i = 0; i < mHeader.NumberOfPartitions; i++)
             {
-                parts.Add(GetLba<PartitionEntry>(hdd, mHeader.StartingLbaOfPartitionEntries, i * mHeader.SizeOfPartitionEntry));
+                var partEnt = GetLba<PartitionEntry>(hdd, mHeader.StartingLbaOfPartitionEntries, i * mHeader.SizeOfPartitionEntry);
+                if (partEnt.Type == Guid.Empty)
+                    continue;
+                parts.Add(partEnt);
             }
 
             //TODO: don't hard code this
