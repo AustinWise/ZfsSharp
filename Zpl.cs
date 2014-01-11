@@ -38,7 +38,6 @@ namespace ZfsSharp
             if (mDslDir.clones != 0)
             {
                 clones = zap.GetDirectoryEntries(mDmu.ReadFromObjectSet(mos, mDslDir.clones));
-                Console.WriteLine();
             }
 
             if (mDslDir.head_dataset_obj == 0)
@@ -52,13 +51,11 @@ namespace ZfsSharp
             {
                 var dn = mDmu.ReadFromObjectSet(mos, mDataset.prev_snap_obj);
                 var moreDs = dmu.GetBonus<dsl_dataset_phys_t>(dn);
-                Console.WriteLine();
             }
 
             if (mDataset.props_obj != 0)
             {
                 var someProps = mZap.Parse(mDmu.ReadFromObjectSet(mos, mDataset.props_obj));
-                Console.WriteLine();
             }
 
             mZfsObjset = zio.Get<objset_phys_t>(mDataset.bp);
