@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZfsSharp", "ZfsSharpLib.csproj", "{6A0F1BE1-B663-4A9C-B57F-40602A5B221A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZfsSharpLib", "ZfsSharpLib\ZfsSharpLib.csproj", "{6A0F1BE1-B663-4A9C-B57F-40602A5B221A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
