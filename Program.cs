@@ -27,7 +27,7 @@ namespace ZfsSharp
     {
         static void Main(string[] args)
         {
-            args = new string[] { @"D:\VPC\SmartOsRaid\" };
+            //args = new string[] { @"C:\VPC\SmartOs\" };
             if (args.Length == 0)
             {
                 Console.WriteLine("Usage: ZfsSharp.exe <a directory containing VHD, VDI, or ZFS files>");
@@ -42,17 +42,10 @@ namespace ZfsSharp
             var zap = new Zap(dmu);
             Dsl dsl = new Dsl(hdds[0].Uberblock.rootbp, zap, dmu, zio);
 
-            //return;
-
             var rootZpl = dsl.GetRootDataSet();
 
             var root = rootZpl.Root;
             var children = root.GetChildren().ToArray();
-
-            //var sm = rootZpl.GetFileContents("/spacemap.txt");
-            //System.IO.File.WriteAllBytes("spacemap.txt", rootZpl.GetFileContents("/spacemap.txt"));
-
-            //Console.WriteLine();
 
             foreach (var ds in dsl.ListDataSet())
             {

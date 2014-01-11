@@ -85,6 +85,14 @@ namespace ZfsSharp
             }
         }
     }
+
+    [Flags]
+    enum DD_FLAG : ulong
+    {
+        None = 0,
+        USED_BREAKDOWN = 1 << 0
+    }
+
     enum dd_used_t
     {
         DD_USED_HEAD,
@@ -94,6 +102,7 @@ namespace ZfsSharp
         DD_USED_REFRSRV,
         //DD_USED_NUM
     }
+
     [StructLayout(LayoutKind.Sequential)]
     unsafe struct dsl_dir_phys_t
     {
@@ -117,10 +126,37 @@ namespace ZfsSharp
         public ulong reserved;
         public long props_zapobj;
         public ulong deleg_zapobj; /* dataset delegation permissions */
-        public ulong flags;
+        public DD_FLAG flags;
         public fixed ulong used_breakdown[DD_USED_NUM];
         public long clones; /* dsl_dir objects */
         fixed ulong pad[13]; /* pad out to 256 bytes for good measure */
+    }
+
+    [Flags]
+    enum DS_FLAG : ulong
+    {
+        None = 0,
+        INCONSISTENT = (1UL << 0),
+        /// <summary>
+        /// Do not allow this dataset to be promoted.
+        /// </summary>
+        NOPROMOTE = (1UL << 1),
+        /// <summary>
+        /// UNIQUE_ACCURATE is set if ds_unique_bytes has been correctly
+        /// calculated for head datasets (starting with SPA_VERSION_UNIQUE_ACCURATE,
+        /// refquota/refreservations).
+        /// </summary>
+        UNIQUE_ACCURATE = (1UL << 2),
+        /// <summary>
+        /// DEFER_DESTROY is set after 'zfs destroy -d' has been called
+        /// on a dataset. This allows the dataset to be destroyed using 'zfs release'.
+        /// </summary>
+        DEFER_DESTROY = (1UL << 3),
+        /// <summary>
+        /// CI_DATASET is set if the dataset contains a file system whose
+        /// name lookups should be performed case-insensitively.
+        /// </summary>
+        CI_DATASET = (1UL << 16),
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -151,7 +187,7 @@ namespace ZfsSharp
          */
         public ulong fsid_guid;
         public ulong guid;
-        public ulong flags;		/* FLAG_* */
+        public DS_FLAG flags;
         public blkptr_t bp;
         public long next_clones_obj;	/* DMU_OT_DSL_CLONES */
         public long props_obj;		/* DMU_OT_DSL_PROPS for snaps */
