@@ -48,6 +48,13 @@ namespace ZfsSharp
 
                     if (ds.Name == "zones/var")
                         Console.WriteLine(Encoding.ASCII.GetString(zpl.GetFileContents(@"/svc/log/svc.startd.log")));
+
+                    foreach (var snap in ds.GetZfsSnapShots())
+                    {
+                        var snapName = ds.Name + "@" + snap.Key;
+                        Console.WriteLine(snapName);
+                        printContent(snapName, snap.Value.Root);
+                    }
                 }
             }
 

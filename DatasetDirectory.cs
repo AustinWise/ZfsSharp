@@ -79,5 +79,10 @@ namespace ZfsSharp
         {
             return new Zpl(mMos, objectid, mZap, mDmu, mZio);
         }
+
+        public IEnumerable<KeyValuePair< string, Zpl>> GetZfsSnapShots()
+        {
+            return mSnapShots.Select(snap => new KeyValuePair<string, Zpl>(snap.Key, GetZfs(snap.Value)));
+        }
     }
 }
