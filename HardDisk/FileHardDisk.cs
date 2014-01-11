@@ -44,5 +44,10 @@ namespace ZfsSharp.HardDisks
         {
             get { return mSize; }
         }
+
+        public override void Dispose()
+        {
+            mFile.Dispose();
+        }
     }
 }

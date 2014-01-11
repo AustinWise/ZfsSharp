@@ -5,7 +5,7 @@ using System.Text;
 
 namespace ZfsSharp
 {
-    abstract class HardDisk
+    abstract class HardDisk : IDisposable
     {
         protected void CheckOffsets(long offset, long size)
         {
@@ -28,5 +28,7 @@ namespace ZfsSharp
         {
             get;
         }
+
+        public abstract void Dispose();
     }
 }

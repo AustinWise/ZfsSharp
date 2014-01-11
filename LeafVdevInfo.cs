@@ -6,7 +6,7 @@ using ZfsSharp.HardDisks;
 
 namespace ZfsSharp
 {
-    class LeafVdevInfo
+    class LeafVdevInfo : IDisposable
     {
         public LeafVdevInfo(HardDisk hdd)
         {
@@ -40,6 +40,11 @@ namespace ZfsSharp
         public uberblock_t Uberblock { get; private set; }
         public HardDisk HDD { get; private set; }
         public NvList Config { get; private set; }
+
+        public void Dispose()
+        {
+            HDD.Dispose();
+        }
 
         public static List<LeafVdevInfo> GetLeafVdevs(string dir)
         {

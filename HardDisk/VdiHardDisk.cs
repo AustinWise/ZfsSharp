@@ -80,6 +80,7 @@ namespace ZfsSharp.HardDisks
             mDataOffset = head.OffsetData;
             mBlockSize = head.BlockSize;
         }
+
         public override void Get<T>(long offset, out T @struct)
         {
             var bytes = this.ReadBytes(offset, Marshal.SizeOf(typeof(T)));
@@ -107,6 +108,11 @@ namespace ZfsSharp.HardDisks
         public override long Length
         {
             get { return this.mBlockSize * mBlockLocations.LongLength; }
+        }
+
+        public override void Dispose()
+        {
+            mHdd.Dispose();
         }
     }
 }
