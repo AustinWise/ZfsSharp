@@ -76,7 +76,6 @@ namespace ZfsSharp
             mZio = new Zio(vdevs);
             mDmu = new Dmu(mZio);
             mZap = new Zap(mDmu);
-            //Dsl dsl = new Dsl(hdds[0].Uberblock.rootbp, mZap, mDmu, mZio);
 
             mMos = mZio.Get<objset_phys_t>(ub.rootbp);
             if (mMos.Type != dmu_objset_type_t.DMU_OST_META)
@@ -119,6 +118,11 @@ namespace ZfsSharp
         {
             if (cfg.Get<ulong>("version") != SUPPORTED_VERSION)
                 throw new Exception("Unsupported version.");
+
+            var state = (pool_state)cfg.Get<ulong>("state");
+            if (state != pool_state.ACTIVE && state != pool_state.EXPORTED)
+                throw new Exception("Unknown state: " + state);
+
             var features = cfg.Get<NvList>("features_for_read");
             foreach (var kvp in features)
             {

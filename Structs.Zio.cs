@@ -178,4 +178,27 @@ namespace ZfsSharp
         GZIP_9,
         ZLE,
     }
+    enum pool_state : ulong
+    {
+        /// <summary>
+        /// In active use
+        /// </summary>
+        ACTIVE = 0,
+        /// <summary>
+        /// Explicitly exported
+        /// </summary>
+        EXPORTED,
+        /// <summary>
+        /// Explicitly destroyed
+        /// </summary>
+        DESTROYED,
+        /// <summary>
+        /// Reserved for hot spare use.
+        /// </summary>
+        SPARE,
+        /// <summary>
+        /// Level 2 ARC device
+        /// </summary>
+        L2CACHE,
+    }
 }
