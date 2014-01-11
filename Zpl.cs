@@ -27,9 +27,14 @@ namespace ZfsSharp
             this.mZio = zio;
 
             var rootDataSetObj = dmu.ReadFromObjectSet(mos, objectid);
-            if (rootDataSetObj.Type != dmu_object_type_t.DSL_DATASET)
+            if (!DatasetDirectory.IsDataSet(rootDataSetObj))
                 throw new Exception("Not a DSL_DIR.");
             mDataset = dmu.GetBonus<dsl_dataset_phys_t>(rootDataSetObj);
+
+            if (rootDataSetObj.IsNewType && rootDataSetObj.NewType == dmu_object_byteswap.DMU_BSWAP_ZAP)
+            {
+                var dataSetExtensions = mZap.Parse(rootDataSetObj);
+            }
 
             if (mDataset.prev_snap_obj != 0)
             {

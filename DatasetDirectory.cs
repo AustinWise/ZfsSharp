@@ -39,7 +39,7 @@ namespace ZfsSharp
             if (mDslDir.head_dataset_obj == 0)
                 return; //probably meta data, like $MOS or $FREE
             var rootDataSetObj = dmu.ReadFromObjectSet(mos, mDslDir.head_dataset_obj);
-            if (rootDataSetObj.Type != dmu_object_type_t.DSL_DATASET)
+            if (!IsDataSet(rootDataSetObj))
                 throw new Exception("Not a DSL_DIR.");
             var headDs = dmu.GetBonus<dsl_dataset_phys_t>(rootDataSetObj);
 
@@ -83,6 +83,11 @@ namespace ZfsSharp
         public IEnumerable<KeyValuePair< string, Zpl>> GetZfsSnapShots()
         {
             return mSnapShots.Select(snap => new KeyValuePair<string, Zpl>(snap.Key, GetZfs(snap.Value)));
+        }
+
+        internal static bool IsDataSet(dnode_phys_t dn)
+        {
+            return dn.Type == dmu_object_type_t.DSL_DATASET || (dn.IsNewType && dn.NewType == dmu_object_byteswap.DMU_BSWAP_ZAP);
         }
     }
 }
