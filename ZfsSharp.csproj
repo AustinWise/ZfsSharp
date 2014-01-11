@@ -71,6 +71,11 @@
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RangeMap.cs" />
+    <Compile Include="Structs.Dmu.cs" />
+    <Compile Include="Structs.Dsl.cs" />
+    <Compile Include="Structs.SpaceMaps.cs" />
+    <Compile Include="Structs.Zio.cs" />
+    <Compile Include="Structs.Zpl.cs" />
     <Compile Include="VirtualDevices\HddVdev.cs" />
     <Compile Include="VirtualDevices\MirrorVdev.cs" />
     <Compile Include="VirtualDevices\RaidzVdev.cs" />
