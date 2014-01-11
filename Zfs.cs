@@ -31,6 +31,22 @@ namespace ZfsSharp
         {
             mHdds = LeafVdevInfo.GetLeafVdevs(directory);
 
+            try
+            {
+                Load();
+            }
+            catch
+            {
+                foreach (var hdd in mHdds)
+                {
+                    hdd.Dispose();
+                }
+                throw;
+            }
+        }
+
+        private void Load()
+        {
             if (mHdds.Count == 0)
                 throw new Exception("Did not find any hard drives.");
 
