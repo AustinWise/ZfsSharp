@@ -74,6 +74,18 @@ namespace ZfsSharp
             return ret;
         }
 
+        public void Read(dnode_phys_t dn, byte[] buffer, long offset, long size)
+        {
+            if (offset < 0 || size < 0)
+                throw new ArgumentOutOfRangeException();
+            long blockSize = dn.DataBlkSizeSec * 512;
+            long maxSize = (dn.MaxBlkId + 1) * blockSize;
+            if ((offset + size) > maxSize)
+                throw new ArgumentOutOfRangeException();
+
+            Program.MultiBlockCopy<blkptr_t>(buffer, 0, offset, size, blockSize, blkId => GetBlock(ref dn, blkId), readBlock);
+        }
+
         private void readBlock(blkptr_t blkptr, byte[] dest, long destOffset, long startNdx, long cpyCount)
         {
             var src = mZio.Read(blkptr);

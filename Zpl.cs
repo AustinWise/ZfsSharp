@@ -259,6 +259,8 @@ namespace ZfsSharp
 
         public abstract class ZfsItem
         {
+            static readonly DateTime sEpoc = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
             protected readonly Zpl mZpl;
             internal readonly dnode_phys_t mDn;
             protected readonly long mMode;
@@ -272,9 +274,24 @@ namespace ZfsSharp
                     throw new NotSupportedException();
 
                 mMode = mZpl.GetAttr<long>(mDn, zpl_attr_t.ZPL_MODE);
+
+                CTIME = GetDateTime(zpl_attr_t.ZPL_CTIME);
+                MTIME = GetDateTime(zpl_attr_t.ZPL_MTIME);
+                ATIME = GetDateTime(zpl_attr_t.ZPL_ATIME);
+            }
+
+            DateTime GetDateTime(zpl_attr_t attr)
+            {
+                var bytes = mZpl.GetAttrBytes(mDn, attr);
+                ulong seconds = Program.ToStruct<ulong>(new ArraySegment<byte>(bytes.Array, bytes.Offset, 8));
+                ulong nanosecs = Program.ToStruct<ulong>(new ArraySegment<byte>(bytes.Array, bytes.Offset + 8, 8));
+                return sEpoc.AddSeconds(seconds).AddTicks((long)(nanosecs / 100));
             }
 
             public string Name { get; private set; }
+            public DateTime CTIME { get; private set; }
+            public DateTime MTIME { get; private set; }
+            public DateTime ATIME { get; private set; }
             public ZfsDirectory Parent { get; protected set; }
 
             internal abstract dmu_object_type_t DmuType { get; }
@@ -322,12 +339,25 @@ namespace ZfsSharp
             internal ZfsFile(Zpl zpl, ZfsDirectory parent, string name, dnode_phys_t dn)
                 : base(zpl, parent, name, dn)
             {
+                Length = mZpl.GetAttr<long>(mDn, zpl_attr_t.ZPL_SIZE);
             }
 
             public byte[] GetContents()
             {
-                return mZpl.mDmu.Read(mDn, 0, mZpl.GetAttr<long>(mDn, zpl_attr_t.ZPL_SIZE));
+                return mZpl.mDmu.Read(mDn, 0, Length);
             }
+
+            public byte[] GetContents(long offset, long count)
+            {
+                return mZpl.mDmu.Read(mDn, offset, count);
+            }
+
+            public void GetContents(byte[] buffer, long offset, long count)
+            {
+                mZpl.mDmu.Read(mDn, buffer, offset, count);
+            }
+
+            public long Length { get; private set; }
 
             internal override dmu_object_type_t DmuType
             {
