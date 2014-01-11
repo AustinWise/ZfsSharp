@@ -7,7 +7,7 @@ using ZfsSharp.VirtualDevices;
 
 namespace ZfsSharp
 {
-    class Zfs : IDisposable
+    public class Zfs : IDisposable
     {
         const string ROOT_DATASET = "root_dataset";
         const string CONFIG = "config";

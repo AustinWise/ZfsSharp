@@ -5,7 +5,7 @@ using System.Text;
 
 namespace ZfsSharp
 {
-    class DatasetDirectory
+    public class DatasetDirectory
     {
         private objset_phys_t mMos;
         private Zap mZap;
@@ -14,7 +14,7 @@ namespace ZfsSharp
         private dsl_dir_phys_t mDslDir;
         private Dictionary<string, long> mSnapShots = new Dictionary<string, long>();
 
-        public DatasetDirectory(objset_phys_t mos, long objectid, string name, Zap zap, Dmu dmu, Zio zio)
+        internal DatasetDirectory(objset_phys_t mos, long objectid, string name, Zap zap, Dmu dmu, Zio zio)
         {
             this.mMos = mos;
             this.mZap = zap;

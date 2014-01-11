@@ -6,7 +6,7 @@ using System.Text;
 
 namespace ZfsSharp
 {
-    class Zpl
+    public class Zpl
     {
         private Zap mZap;
         private Dmu mDmu;
@@ -20,7 +20,7 @@ namespace ZfsSharp
 
         static readonly int SaHdrLengthOffset = Marshal.OffsetOf(typeof(sa_hdr_phys_t), "sa_lengths").ToInt32();
 
-        public Zpl(objset_phys_t mos, long objectid, Zap zap, Dmu dmu, Zio zio)
+        internal Zpl(objset_phys_t mos, long objectid, Zap zap, Dmu dmu, Zio zio)
         {
             this.mZap = zap;
             this.mDmu = dmu;
@@ -111,25 +111,25 @@ namespace ZfsSharp
             return id;
         }
 
-        public long GetFileSize(dnode_phys_t dn)
+        long GetFileSize(dnode_phys_t dn)
         {
             return GetAttr<long>(dn, zpl_attr_t.ZPL_SIZE);
         }
 
-        public ZfsItemType GetFileType(dnode_phys_t dn)
+        ZfsItemType GetFileType(dnode_phys_t dn)
         {
             var mode = GetAttr<long>(dn, zpl_attr_t.ZPL_MODE);
             return (ZfsItemType)((mode >> 12) & 0xf);
         }
 
-        public T GetAttr<T>(dnode_phys_t dn, zpl_attr_t attr) where T : struct
+        T GetAttr<T>(dnode_phys_t dn, zpl_attr_t attr) where T : struct
         {
             var bytes = GetAttrBytes(dn, attr);
 
             return Program.ToStruct<T>(bytes);
         }
 
-        public ArraySegment<byte> GetAttrBytes(dnode_phys_t dn, zpl_attr_t attr)
+        ArraySegment<byte> GetAttrBytes(dnode_phys_t dn, zpl_attr_t attr)
         {
             var bytes = mDmu.ReadBonus(dn);
             ArraySegment<byte> ret;
@@ -255,9 +255,9 @@ namespace ZfsSharp
         public abstract class ZfsItem
         {
             protected readonly Zpl mZpl;
-            protected readonly dnode_phys_t mDn;
+            internal readonly dnode_phys_t mDn;
             protected readonly long mMode;
-            public ZfsItem(Zpl zpl, ZfsDirectory parent, string name, dnode_phys_t dn)
+            internal ZfsItem(Zpl zpl, ZfsDirectory parent, string name, dnode_phys_t dn)
             {
                 this.mZpl = zpl;
                 this.Name = name;
@@ -272,7 +272,7 @@ namespace ZfsSharp
             public string Name { get; private set; }
             public ZfsDirectory Parent { get; protected set; }
 
-            protected abstract dmu_object_type_t DmuType { get; }
+            internal abstract dmu_object_type_t DmuType { get; }
 
             public virtual string FullPath
             {
@@ -314,7 +314,7 @@ namespace ZfsSharp
 
         public class ZfsFile : ZfsItem
         {
-            public ZfsFile(Zpl zpl, ZfsDirectory parent, string name, dnode_phys_t dn)
+            internal ZfsFile(Zpl zpl, ZfsDirectory parent, string name, dnode_phys_t dn)
                 : base(zpl, parent, name, dn)
             {
             }
@@ -324,7 +324,7 @@ namespace ZfsSharp
                 return mZpl.mDmu.Read(mDn, 0, mZpl.GetAttr<long>(mDn, zpl_attr_t.ZPL_SIZE));
             }
 
-            protected override dmu_object_type_t DmuType
+            internal override dmu_object_type_t DmuType
             {
                 get { return dmu_object_type_t.PLAIN_FILE_CONTENTS; }
             }
@@ -332,7 +332,7 @@ namespace ZfsSharp
 
         public class ZfsSymLink : ZfsItem
         {
-            public ZfsSymLink(Zpl zpl, ZfsDirectory parent, string name, dnode_phys_t dn)
+            internal ZfsSymLink(Zpl zpl, ZfsDirectory parent, string name, dnode_phys_t dn)
                 : base(zpl, parent, name, dn)
             {
                 var bytes = zpl.GetAttrBytes(dn, zpl_attr_t.ZPL_SYMLINK);
@@ -341,7 +341,7 @@ namespace ZfsSharp
 
             public string PointsTo { get; private set; }
 
-            protected override dmu_object_type_t DmuType
+            internal override dmu_object_type_t DmuType
             {
                 get { return dmu_object_type_t.PLAIN_FILE_CONTENTS; }
             }
@@ -349,12 +349,12 @@ namespace ZfsSharp
 
         public class ZfsDirectory : ZfsItem
         {
-            public ZfsDirectory(Zpl zpl, dnode_phys_t dn)
+            internal ZfsDirectory(Zpl zpl, dnode_phys_t dn)
                 : base(zpl, null, "/", dn)
             {
                 this.Parent = this;
             }
-            public ZfsDirectory(Zpl zpl, ZfsDirectory parent, string name, dnode_phys_t dn)
+            internal ZfsDirectory(Zpl zpl, ZfsDirectory parent, string name, dnode_phys_t dn)
                 : base(zpl, parent, name, dn)
             {
             }
@@ -367,7 +367,7 @@ namespace ZfsSharp
                 }
             }
 
-            protected override dmu_object_type_t DmuType
+            internal override dmu_object_type_t DmuType
             {
                 get { return dmu_object_type_t.DIRECTORY_CONTENTS; }
             }
