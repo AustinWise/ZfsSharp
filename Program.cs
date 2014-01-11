@@ -34,35 +34,21 @@ namespace ZfsSharp
                 return;
             }
 
-            var hdds = LeafVdevInfo.GetLeafVdevs(args[0]);
-            var vdevs = Vdev.CreateVdevTree(hdds);
-
-            Zio zio = new Zio(vdevs);
-            var dmu = new Dmu(zio);
-            var zap = new Zap(dmu);
-            Dsl dsl = new Dsl(hdds[0].Uberblock.rootbp, zap, dmu, zio);
-
-            var rootZpl = dsl.GetRootDataSet();
-
-            var root = rootZpl.Root;
-            var children = root.GetChildren().ToArray();
-
-            foreach (var ds in dsl.ListDataSet())
+            using (var zfs = new Zfs(args[0]))
             {
-                Console.WriteLine("{0}: {1}", ds.Key, ds.Value);
-            }
+                foreach (var ds in zfs.GetDataSets())
+                {
+                    Console.WriteLine("{0}: {1}", ds.Type, ds.Name);
 
-            foreach (var ds in dsl.ListDataSet())
-            {
-                //TODO: a better way of detecting the type of dataset
-                if (ds.Key.Contains("$MOS") || ds.Key.Contains("$FREE") || ds.Key.Contains("$ORIGIN") || ds.Key.Contains("/dump") || ds.Key.Contains("/swap"))
-                    continue;
+                    if (ds.Type != DataSetType.ZFS)
+                        continue;
 
-                var zpl = dsl.GetDataset(ds.Value);
-                printContent(ds.Key, zpl.Root);
+                    var zpl = ds.GetHeadZfs();
+                    printContent(ds.Name, zpl.Root);
 
-                if (ds.Key == "zones/var")
-                    Console.WriteLine(Encoding.ASCII.GetString(zpl.GetFileContents(@"/svc/log/svc.startd.log")));
+                    if (ds.Name == "zones/var")
+                        Console.WriteLine(Encoding.ASCII.GetString(zpl.GetFileContents(@"/svc/log/svc.startd.log")));
+                }
             }
 
             /*
@@ -74,10 +60,9 @@ namespace ZfsSharp
             Console.WriteLine();
         }
 
-        private static void BenchmarkFileReading(Dsl dsl)
+        private static void BenchmarkFileReading(Zfs zfs)
         {
-
-            var varzpl = dsl.ListDataSet().Where(k => k.Key == "zones/var").Select(k => dsl.GetDataset(k.Value)).Single();
+            var varzpl = zfs.GetDataSets().Where(k => k.Name == "zones/var").Select(ds => ds.GetHeadZfs()).Single();
             Stopwatch st = Stopwatch.StartNew();
             for (int i = 0; i < 1000; i++)
             {

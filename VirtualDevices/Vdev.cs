@@ -69,8 +69,6 @@ namespace ZfsSharp.VirtualDevices
 
         public static Vdev[] CreateVdevTree(List<LeafVdevInfo> hdds)
         {
-            var poolGuid = hdds.Select(h => h.Config.Get<ulong>("pool_guid")).Distinct().Single();
-
             var hddMap = new Dictionary<ulong, LeafVdevInfo>();
             var innerVdevConfigs = new Dictionary<ulong, NvList>();
             foreach (var hdd in hdds)

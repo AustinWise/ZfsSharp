@@ -51,6 +51,11 @@ namespace ZfsSharp
 
         private Dictionary<string, object> mVals = new Dictionary<string, object>();
 
+        public NvList(byte[] bytes)
+            : this(new MemoryStream(bytes))
+        {
+        }
+
         public NvList(Stream s)
         {
             var r = new NvListBinaryReader(s, Encoding.ASCII);

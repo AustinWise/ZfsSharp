@@ -36,6 +36,11 @@ namespace ZfsSharp
 
         public byte[] Read(blkptr_t blkptr)
         {
+            if (blkptr.phys_birth != 0)
+                throw new Exception("Non-zero phys birth.  This is not an error, want to see it when I read it.");
+
+            if (blkptr.IsHole)
+                throw new Exception("Block pointer is a hole.");
             if (blkptr.fill == 0)
                 throw new NotSupportedException("There is no data in this block pointer.");
             if (blkptr.birth == 0)

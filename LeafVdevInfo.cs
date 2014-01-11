@@ -25,10 +25,6 @@ namespace ZfsSharp
 
             using (var s = new MemoryStream(hdd.ReadBytes(16 << 10, 112 << 10)))
                 Config = new NvList(s);
-            if (Config.Get<ulong>("version") != 5000)
-            {
-                throw new NotSupportedException();
-            }
 
             const int VDevLableSizeStart = 4 << 20;
             const int VDevLableSizeEnd = 512 << 10;

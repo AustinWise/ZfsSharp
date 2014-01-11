@@ -57,6 +57,11 @@ namespace ZfsSharp
         {
             get { return (word2 & (1 << 63)) != 0; }
         }
+
+        public bool IsEmpty
+        {
+            get { return word1 == 0 && word2 == 0; }
+        }
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -116,6 +121,11 @@ namespace ZfsSharp
         public ushort LSize
         {
             get { return (ushort)(prop & 0xffff); }
+        }
+
+        public bool IsHole
+        {
+            get { return dva1.IsEmpty; }
         }
 
         public bool Equals(blkptr_t other)

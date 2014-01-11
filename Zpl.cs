@@ -11,7 +11,6 @@ namespace ZfsSharp
         private Zap mZap;
         private Dmu mDmu;
         private Zio mZio;
-        private dsl_dir_phys_t mDslDir;
         private dsl_dataset_phys_t mDataset;
         private objset_phys_t mZfsObjset;
         private Dictionary<string, long> mZfsObjDir;
@@ -27,22 +26,7 @@ namespace ZfsSharp
             this.mDmu = dmu;
             this.mZio = zio;
 
-            var rootDslObj = dmu.ReadFromObjectSet(mos, objectid);
-            if (rootDslObj.Type != dmu_object_type_t.DSL_DIR)
-                throw new NotSupportedException("Expected DSL_DIR dnode.");
-            mDslDir = dmu.GetBonus<dsl_dir_phys_t>(rootDslObj);
-            var rootDslProps = zap.Parse(dmu.ReadFromObjectSet(mos, mDslDir.props_zapobj));
-
-            var children = zap.Parse(mDmu.ReadFromObjectSet(mos, mDslDir.child_dir_zapobj));
-            Dictionary<string, long> clones;
-            if (mDslDir.clones != 0)
-            {
-                clones = zap.GetDirectoryEntries(mDmu.ReadFromObjectSet(mos, mDslDir.clones));
-            }
-
-            if (mDslDir.head_dataset_obj == 0)
-                throw new Exception("No head dataset.");
-            var rootDataSetObj = dmu.ReadFromObjectSet(mos, mDslDir.head_dataset_obj);
+            var rootDataSetObj = dmu.ReadFromObjectSet(mos, objectid);
             if (rootDataSetObj.Type != dmu_object_type_t.DSL_DATASET)
                 throw new Exception("Not a DSL_DIR.");
             mDataset = dmu.GetBonus<dsl_dataset_phys_t>(rootDataSetObj);

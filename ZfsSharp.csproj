@@ -53,8 +53,9 @@
     <Compile Include="-\System\DataStructures\FuncComparer.cs" />
     <Compile Include="-\System\IComparableExtensions.cs" />
     <Compile Include="-\Throw.cs" />
+    <Compile Include="DatasetDirectory.cs" />
+    <Compile Include="DataSetType.cs" />
     <Compile Include="Dmu.cs" />
-    <Compile Include="Dsl.cs" />
     <Compile Include="Flecter4.cs" />
     <Compile Include="HardDisk\FileHardDisk.cs" />
     <Compile Include="HardDisk\GptHardDrive.cs" />
@@ -81,6 +82,7 @@
     <Compile Include="VirtualDevices\RaidzVdev.cs" />
     <Compile Include="VirtualDevices\Vdev.cs" />
     <Compile Include="Zap.cs" />
+    <Compile Include="Zfs.cs" />
     <Compile Include="Zio.cs" />
     <Compile Include="Zpl.cs" />
   </ItemGroup>
