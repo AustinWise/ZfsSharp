@@ -101,7 +101,7 @@ namespace ZfsSharp.HardDisks
                 throw new Exception("Not a GPT.");
             if (mHeader.Revision != CurrentRevision)
                 throw new Exception("Wrong rev.");
-            if (mHeader.HeaderSize != SectorSize)
+            if (mHeader.HeaderSize < CurrentHeaderSize)
                 throw new Exception("Wrong header size.");
             //TODO: check crc
             if (mHeader.SizeOfPartitionEntry != ParitionEntrySize)
