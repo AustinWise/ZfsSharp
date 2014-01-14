@@ -94,13 +94,14 @@ namespace ZfsSharp
 
         private blkptr_t GetBlock(ref dnode_phys_t dn, long blockId)
         {
-            long indirMask = (1 << dn.IndirectBlockShift) - 1;
+            int indirBlockShift = dn.IndirectBlockShift - blkptr_t.SPA_BLKPTRSHIFT;
+            long indirMask = (1 << indirBlockShift) - 1;
 
             var indirOffsets = new Stack<long>(dn.NLevels);
             for (int i = 0; i < dn.NLevels; i++)
             {
                 indirOffsets.Push(blockId & indirMask);
-                blockId >>= dn.IndirectBlockShift;
+                blockId >>= indirBlockShift;
             }
 
             blkptr_t ptr = dn.GetBlkptr(indirOffsets.Pop());
