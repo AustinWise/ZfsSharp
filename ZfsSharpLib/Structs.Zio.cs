@@ -177,6 +177,7 @@ namespace ZfsSharp
         GZIP_8,
         GZIP_9,
         ZLE,
+        LZ4,
     }
     enum pool_state : ulong
     {
