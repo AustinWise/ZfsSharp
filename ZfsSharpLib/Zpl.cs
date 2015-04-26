@@ -50,14 +50,13 @@ namespace ZfsSharp
             mZfsObjset = zio.Get<objset_phys_t>(mDataset.bp);
             if (mZfsObjset.Type != dmu_objset_type_t.DMU_OST_ZFS)
                 throw new NotSupportedException();
-            mZfsObjDir = zap.GetDirectoryEntries(dmu.ReadFromObjectSet(mZfsObjset, 1));
+            mZfsObjDir = zap.GetDirectoryEntries(mZfsObjset, 1);
             if (mZfsObjDir["VERSION"] != 5)
                 throw new NotSupportedException();
 
-            var saAttrsDn = dmu.ReadFromObjectSet(mZfsObjset, mZfsObjDir["SA_ATTRS"]);
-            var saAttrs = zap.GetDirectoryEntries(saAttrsDn);
+            var saAttrs = zap.GetDirectoryEntries(mZfsObjset, mZfsObjDir["SA_ATTRS"]);
             var saLayouts = zap.Parse(dmu.ReadFromObjectSet(mZfsObjset, saAttrs["LAYOUTS"]));
-            var saRegistry = zap.GetDirectoryEntries(dmu.ReadFromObjectSet(mZfsObjset, saAttrs["REGISTRY"]));
+            var saRegistry = zap.GetDirectoryEntries(mZfsObjset, saAttrs["REGISTRY"]);
 
             mAttrSize = new Dictionary<zpl_attr_t, int>();
             foreach (var kvp in saRegistry)
@@ -109,7 +108,7 @@ namespace ZfsSharp
             var pathParts = path.Substring(1).Split('/');
             foreach (var p in pathParts)
             {
-                var dir = mZap.GetDirectoryEntries(mDmu.ReadFromObjectSet(mZfsObjset, id));
+                var dir = mZap.GetDirectoryEntries(mZfsObjset, id);
                 id = dir[p];
             }
 

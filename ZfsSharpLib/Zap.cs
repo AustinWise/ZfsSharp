@@ -31,6 +31,12 @@ namespace ZfsSharp
             }
         }
 
+
+        public Dictionary<string, long> GetDirectoryEntries(objset_phys_t objectSet, long objectId)
+        {
+            return GetDirectoryEntries(mDmu.ReadFromObjectSet(objectSet, objectId));
+        }
+
         unsafe public Dictionary<string, long> GetDirectoryEntries(dnode_phys_t dn, bool skipUnexpectedValues = false)
         {
             var zapBytes = mDmu.Read(dn);

@@ -99,12 +99,12 @@ namespace ZfsSharp
 
         private void CheckFeatures()
         {
-            var fr = mZap.GetDirectoryEntries(mDmu.ReadFromObjectSet(mMos, mObjDir["features_for_read"]));
-            var fw = mZap.GetDirectoryEntries(mDmu.ReadFromObjectSet(mMos, mObjDir["features_for_write"]));
+            var fr = mZap.GetDirectoryEntries(mMos, mObjDir["features_for_read"]);
+            var fw = mZap.GetDirectoryEntries(mMos, mObjDir["features_for_write"]);
             var ff = mZap.Parse(mDmu.ReadFromObjectSet(mMos, mObjDir["feature_descriptions"])).ToDictionary(kvp => kvp.Key, kvp => Encoding.ASCII.GetString((byte[])kvp.Value));
             if (fw.ContainsKey("com.delphix:enabled_txg") && fw["com.delphix:enabled_txg"] > 0)
             {
-                var fe = mZap.GetDirectoryEntries(mDmu.ReadFromObjectSet(mMos, mObjDir["feature_enabled_txg"]));
+                var fe = mZap.GetDirectoryEntries(mMos, mObjDir["feature_enabled_txg"]);
             }
 
             foreach (var feature in fr)
@@ -151,7 +151,7 @@ namespace ZfsSharp
             if (childZapObjid == 0)
                 return;
 
-            var children = mZap.GetDirectoryEntries(mDmu.ReadFromObjectSet(mMos, childZapObjid));
+            var children = mZap.GetDirectoryEntries(mMos, childZapObjid);
 
             foreach (var kvp in children)
             {

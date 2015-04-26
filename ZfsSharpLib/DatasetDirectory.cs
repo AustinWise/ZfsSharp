@@ -33,7 +33,7 @@ namespace ZfsSharp
             Dictionary<string, long> clones;
             if (mDslDir.clones != 0)
             {
-                clones = zap.GetDirectoryEntries(mDmu.ReadFromObjectSet(mos, mDslDir.clones));
+                clones = zap.GetDirectoryEntries(mos, mDslDir.clones);
             }
 
             if (mDslDir.head_dataset_obj == 0)
@@ -48,7 +48,7 @@ namespace ZfsSharp
 
             if (headDs.snapnames_zapobj != 0)
             {
-                mSnapShots = mZap.GetDirectoryEntries(mDmu.ReadFromObjectSet(mMos, headDs.snapnames_zapobj));
+                mSnapShots = mZap.GetDirectoryEntries(mMos, headDs.snapnames_zapobj);
             }
 
             if (headDs.bp.Type != dmu_object_type_t.OBJSET)
