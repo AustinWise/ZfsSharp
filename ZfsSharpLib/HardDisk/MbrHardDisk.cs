@@ -74,12 +74,8 @@ namespace ZfsSharp.HardDisks
 
     class MbrHardDisk : OffsetHardDisk
     {
-
-        //private HardDisk mHdd;
         private MbrHeader mHeader;
         private PartitionEntry mPartition;
-        //private long mOffset;
-        //private long mSize;
 
         public MbrHardDisk(HardDisk hdd, int partition)
         {
