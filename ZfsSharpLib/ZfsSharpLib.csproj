@@ -40,6 +40,9 @@
     <StartupObject />
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Lz4Net">
+      <HintPath>..\packages\Lz4.Net.1.0.98\lib\net40\Lz4Net.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -68,6 +71,7 @@
     <Compile Include="HardDisk\OffsetHardDisk.cs" />
     <Compile Include="HardDisk\VdiHardDisk.cs" />
     <Compile Include="LeafVdevInfo.cs" />
+    <Compile Include="LZ4.cs" />
     <Compile Include="Lzjb.cs" />
     <Compile Include="MetaSlabs.cs" />
     <Compile Include="NvList.cs" />
@@ -93,6 +97,14 @@
   <ItemGroup>
     <None Include="app.config" />
     <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="x64\lz4X64.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="x86\lz4X86.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

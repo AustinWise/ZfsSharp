@@ -15,7 +15,8 @@ namespace ZfsSharp
 
         readonly static ReadOnlyCollection<string> sSupportReadFeatures = new ReadOnlyCollection<string>(new string[]{
             "com.delphix:hole_birth", //as far as I can tell this just means that hole block pointers will have their birth fields filled in
-            "com.delphix:extensible_dataset" //this means a DSL_DATASET DN contains ZAP entries
+            "com.delphix:extensible_dataset", //this means a DSL_DATASET DN contains ZAP entries
+            "org.illumos:lz4_compress",
         });
 
         List<LeafVdevInfo> mHdds;

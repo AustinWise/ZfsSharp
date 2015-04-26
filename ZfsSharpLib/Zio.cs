@@ -23,6 +23,7 @@ namespace ZfsSharp
 
             mCompression.Add(zio_compress.LZJB, new Lzjb());
             mCompression.Add(zio_compress.OFF, new NoCompression());
+            mCompression.Add(zio_compress.LZ4, new LZ4());
         }
 
         //a bit of a layering violation
