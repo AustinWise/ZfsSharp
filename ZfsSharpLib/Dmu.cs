@@ -12,13 +12,30 @@ namespace ZfsSharp
             mZio = zio;
         }
 
+        unsafe static void CalculateBonusSize(ref dnode_phys_t dn, out int bonusOffset, out int maxBonusSize)
+        {
+            if (dn.BonusType == dmu_object_type_t.NONE)
+                throw new Exception("No bonus type.");
+
+            bonusOffset = (dn.NBlkPtrs - 1) * sizeof(blkptr_t);
+            maxBonusSize = dnode_phys_t.DN_MAX_BONUSLEN - bonusOffset;
+            if ((dn.Flags & DnodeFlags.SpillBlkptr) != 0)
+            {
+                maxBonusSize -= sizeof(blkptr_t);
+            }
+        }
+
         unsafe public T GetBonus<T>(dnode_phys_t dn) where T : struct
         {
             Type t = typeof(T);
-            int bonusOffset = (dn.NBlkPtrs - 1) * sizeof(blkptr_t);
-            int bonusSize = dnode_phys_t.DN_MAX_BONUSLEN - bonusOffset;
+            int structSize = Marshal.SizeOf(t);
+            int bonusOffset;
+            int maxBonusSize;
+            CalculateBonusSize(ref dn, out bonusOffset, out maxBonusSize);
 
-            if (Marshal.SizeOf(t) > bonusSize)
+            if (structSize > maxBonusSize)
+                throw new ArgumentOutOfRangeException();
+            if (structSize > dn.BonusLen)
                 throw new ArgumentOutOfRangeException();
 
             return (T)Marshal.PtrToStructure(new IntPtr(dn.Bonus + bonusOffset), typeof(T));
@@ -42,15 +59,15 @@ namespace ZfsSharp
 
         unsafe public byte[] ReadBonus(dnode_phys_t dn)
         {
-            int bonusOffset = (dn.NBlkPtrs - 1) * sizeof(blkptr_t);
-            int bonusSize = dnode_phys_t.DN_MAX_BONUSLEN - bonusOffset;
-            if ((dn.Flags & DnodeFlags.SpillBlkptr) != 0)
-            {
-                bonusSize -= sizeof(blkptr_t);
-            }
+            int bonusOffset;
+            int maxBonusSize;
+            CalculateBonusSize(ref dn, out bonusOffset, out maxBonusSize);
 
-            byte[] bonus = new byte[bonusSize];
-            Marshal.Copy(new IntPtr(dn.Bonus + bonusOffset), bonus, 0, bonusSize);
+            if (dn.BonusLen > maxBonusSize)
+                throw new Exception("Specified bonus size is larger than the dnode can hold.");
+
+            byte[] bonus = new byte[dn.BonusLen];
+            Marshal.Copy(new IntPtr(dn.Bonus + bonusOffset), bonus, 0, dn.BonusLen);
             return bonus;
         }
 

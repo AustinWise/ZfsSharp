@@ -236,13 +236,20 @@ namespace ZfsSharp
         public DnodeFlags Flags;
         [FieldOffset(8)]
         public short DataBlkSizeSec;
-        [FieldOffset(9)]
+        [FieldOffset(10)]
         public short BonusLen;
+
+        //4 bytes of padding here
 
         [FieldOffset(0x10)]
         public long MaxBlkId;
+        /// <summary>
+        /// The sum of all asize values for all block pointers (data and indirect) for this object.  May be in bytes.
+        /// </summary>
         [FieldOffset(0x18)]
-        public UInt64 Used;  //TODO: consider checking this and doing something about it
+        long Used;
+
+        //32 bytes of padding here
 
         [FieldOffset(0x40)]
         public blkptr_t blkptr1;
@@ -271,6 +278,14 @@ namespace ZfsSharp
                 default:
                     throw new ArgumentOutOfRangeException();
             }
+        }
+
+        public long DN_USED_BYTES()
+        {
+            if ((this.Flags & DnodeFlags.UsedBytes) == 0)
+                return this.Used << Program.SPA_MINBLOCKSHIFT;
+            else
+                return this.Used;
         }
     }
 }
