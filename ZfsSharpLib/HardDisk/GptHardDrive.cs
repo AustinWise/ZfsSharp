@@ -96,20 +96,8 @@ namespace ZfsSharp.HardDisks
             if (MbrHardDisk.GetType(hdd, 0) != MbrPartitionType.GptProtective)
                 throw new Exception("Not GPT.");
 
-            hdd.Get(SectorSize, out mHeader); //LBA 1
-            if (mHeader.Signature != EfiMagic)
-                throw new Exception("Not a GPT.");
-            if (mHeader.Revision != CurrentRevision)
-                throw new Exception("Wrong rev.");
-            if (mHeader.HeaderSize < CurrentHeaderSize)
-                throw new Exception("Wrong header size.");
-            //TODO: check crc
-            if (mHeader.SizeOfPartitionEntry != ParitionEntrySize)
-                throw new Exception("Wrong ParitionEntrySize.");
-            //TODO: check partition entry CRC
-
-            if (mHeader.NumberOfPartitions == 0)
-                throw new Exception("No partitions!");
+            mHeader = LoadHeader(hdd, SectorSize);
+            var backup = LoadHeader(hdd, hdd.Length - SectorSize);
 
             List<PartitionEntry> parts = new List<PartitionEntry>();
             for (int i = 0; i < mHeader.NumberOfPartitions; i++)
@@ -126,6 +114,28 @@ namespace ZfsSharp.HardDisks
                 throw new Exception("Not a ZFS partition.");
 
             Init(hdd, SectorSize * mPartition.FirstLba, SectorSize * (mPartition.LastLba - mPartition.FirstLba));
+        }
+
+        private GptHeader LoadHeader(HardDisk hdd, long offset)
+        {
+            GptHeader ret;
+
+            hdd.Get(offset, out ret); //LBA 1
+            if (ret.Signature != EfiMagic)
+                throw new Exception("Not a GPT.");
+            if (ret.Revision != CurrentRevision)
+                throw new Exception("Wrong rev.");
+            if (ret.HeaderSize < CurrentHeaderSize)
+                throw new Exception("Wrong header size.");
+            //TODO: check crc
+            if (ret.SizeOfPartitionEntry != ParitionEntrySize)
+                throw new Exception("Wrong ParitionEntrySize.");
+            //TODO: check partition entry CRC
+
+            if (ret.NumberOfPartitions == 0)
+                throw new Exception("No partitions!");
+
+            return ret;
         }
 
         private static T GetLba<T>(HardDisk hdd, long absoluteLba, long extraOffset) where T : struct
