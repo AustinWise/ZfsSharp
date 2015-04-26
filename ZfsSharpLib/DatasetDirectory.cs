@@ -26,10 +26,11 @@ namespace ZfsSharp
             var rootDslObj = dmu.ReadFromObjectSet(mos, objectid);
             if (rootDslObj.Type != dmu_object_type_t.DSL_DIR)
                 throw new NotSupportedException("Expected DSL_DIR dnode.");
+            if (rootDslObj.BonusType != dmu_object_type_t.DSL_DIR)
+                throw new NotSupportedException("Expected DSL_DIR bonus.");
             mDslDir = dmu.GetBonus<dsl_dir_phys_t>(rootDslObj);
             var rootDslProps = zap.Parse(dmu.ReadFromObjectSet(mos, mDslDir.props_zapobj));
 
-            var children = zap.Parse(mDmu.ReadFromObjectSet(mos, mDslDir.child_dir_zapobj));
             Dictionary<string, long> clones;
             if (mDslDir.clones != 0)
             {
@@ -40,7 +41,9 @@ namespace ZfsSharp
                 return; //probably meta data, like $MOS or $FREE
             var rootDataSetObj = dmu.ReadFromObjectSet(mos, mDslDir.head_dataset_obj);
             if (!IsDataSet(rootDataSetObj))
-                throw new Exception("Not a DSL_DIR.");
+                throw new Exception("Not a dataset!");
+            if (rootDataSetObj.BonusType != dmu_object_type_t.DSL_DATASET)
+                throw new Exception("Missing dataset bonus!");
             var headDs = dmu.GetBonus<dsl_dataset_phys_t>(rootDataSetObj);
 
             if (headDs.bp.IsHole && mDslDir.origin_obj == 0)
@@ -80,9 +83,16 @@ namespace ZfsSharp
             return new Zpl(mMos, objectid, mZap, mDmu, mZio);
         }
 
-        public IEnumerable<KeyValuePair< string, Zpl>> GetZfsSnapShots()
+        public IEnumerable<KeyValuePair<string, Zpl>> GetZfsSnapShots()
         {
             return mSnapShots.Select(snap => new KeyValuePair<string, Zpl>(snap.Key, GetZfs(snap.Value)));
+        }
+
+        public IEnumerable<KeyValuePair<string, long>> GetChildren()
+        {
+            if (mDslDir.child_dir_zapobj == 0)
+                return Enumerable.Empty<KeyValuePair<string, long>>();
+            return mZap.GetDirectoryEntries(mMos, mDslDir.child_dir_zapobj);
         }
 
         internal static bool IsDataSet(dnode_phys_t dn)

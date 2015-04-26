@@ -144,18 +144,10 @@ namespace ZfsSharp
 
         void listDataSetName(long objectId, string nameBase, List<DatasetDirectory> ret)
         {
-            ret.Add(new DatasetDirectory(mMos, objectId, nameBase, mZap, mDmu, mZio));
+            var dsd = new DatasetDirectory(mMos, objectId, nameBase, mZap, mDmu, mZio);
+            ret.Add(dsd);
 
-            var rootDslObj = mDmu.ReadFromObjectSet(mMos, objectId);
-            dsl_dir_phys_t dslDir = mDmu.GetBonus<dsl_dir_phys_t>(rootDslObj);
-
-            var childZapObjid = dslDir.child_dir_zapobj;
-            if (childZapObjid == 0)
-                return;
-
-            var children = mZap.GetDirectoryEntries(mMos, childZapObjid);
-
-            foreach (var kvp in children)
+            foreach (var kvp in dsd.GetChildren())
             {
                 listDataSetName(kvp.Value, nameBase + "/" + kvp.Key, ret);
             }
