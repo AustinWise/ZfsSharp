@@ -12,6 +12,7 @@ namespace ZfsSharp.HardDisks
     {
         Empty = 0,
         Ntfs = 7,
+        Solaris = 0xbf,
         GptProtective = 0xee,
     }
     #region StructStuff
