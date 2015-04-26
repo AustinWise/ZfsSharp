@@ -12,6 +12,8 @@ namespace ZfsSharp
     /// </summary>
     class NvList : IEnumerable<KeyValuePair<string, object>>
     {
+        const int NV_VERSION = 0;
+
         enum NvDataType
         {
             UNKNOWN = 0,
@@ -41,6 +43,14 @@ namespace ZfsSharp
             BOOLEAN_ARRAY,
             INT8_ARRAY,
             UINT8_ARRAY,
+        }
+
+        [Flags]
+        enum NvFlags : int
+        {
+            None = 0,
+            UNIQUE_NAME = 0x1,
+            UNIQUE_NAME_TYPE = 0x2,
         }
 
         enum NV_ENCODE : byte
@@ -82,9 +92,11 @@ namespace ZfsSharp
         private void Load(NvListBinaryReader r)
         {
             int version = r.ReadInt32();
-            int flags = r.ReadInt32();
 
+            if (version != NV_VERSION)
+                throw new NotSupportedException("Unsupport NVList version!");
 
+            NvFlags flags = (NvFlags)r.ReadInt32();
 
             while (true)
             {
@@ -119,6 +131,9 @@ namespace ZfsSharp
                         val = array;
                         break;
                     case NvDataType.BOOLEAN:
+                        val = true;
+                        break;
+                    case NvDataType.BOOLEAN_VALUE:
                         val = r.ReadInt32() != 0;
                         break;
                     default:
