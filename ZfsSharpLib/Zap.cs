@@ -31,7 +31,7 @@ namespace ZfsSharp
             }
         }
 
-        unsafe public Dictionary<string, long> GetDirectoryEntries(dnode_phys_t dn)
+        unsafe public Dictionary<string, long> GetDirectoryEntries(dnode_phys_t dn, bool skipUnexpectedValues = false)
         {
             var zapBytes = mDmu.Read(dn);
             fixed (byte* ptr = zapBytes)
@@ -48,7 +48,11 @@ namespace ZfsSharp
                     {
                         var data = (long[])kvp.Value;
                         if (data.Length != 1)
-                            throw new Exception();
+                        {
+                            if (skipUnexpectedValues)
+                                continue;
+                            throw new Exception("Directory entry '" + kvp.Key + "' points to more than one object id!");
+                        }
                         ret.Add(kvp.Key, data[0]);
                     }
                     return ret;

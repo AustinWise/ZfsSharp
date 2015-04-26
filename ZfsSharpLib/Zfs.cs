@@ -86,7 +86,9 @@ namespace ZfsSharp
             mZio.InitMetaSlabs(mMos, mDmu);
 
             dnode_phys_t objectDirectory = mDmu.ReadFromObjectSet(mMos, 1);
-            mObjDir = mZap.GetDirectoryEntries(objectDirectory);
+            //The MOS's directory sometimes has things that don't like like directory entries.
+            //For example, the "scan" entry has scrub status stuffed into as an array of longs.
+            mObjDir = mZap.GetDirectoryEntries(objectDirectory, true);
 
             var configDn = mDmu.ReadFromObjectSet(mMos, mObjDir[CONFIG]);
             mConfig = new NvList(mDmu.Read(configDn));
