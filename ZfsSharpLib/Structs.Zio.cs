@@ -65,33 +65,9 @@ namespace ZfsSharp
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    struct blkptr_t : IEquatable<blkptr_t>
+    struct NormalProperties
     {
-        public const int SPA_BLKPTRSHIFT = 7;
-        public const int SPA_DVAS_PER_BP = 3;
-
-        public dva_t dva1;
-        public dva_t dva2;
-        public dva_t dva3;
-
         long prop;
-
-        long pad1;
-        long pad2;
-        public long phys_birth;
-        public long birth;
-        public long fill;
-        public zio_cksum_t cksum;
-
-        public int Level
-        {
-            get { return (int)((prop >> 56) & 0x1f); }
-        }
-
-        public bool IsLittleEndian
-        {
-            get { return (prop >> 63) != 0; }
-        }
 
         public zio_checksum Checksum
         {
@@ -101,6 +77,140 @@ namespace ZfsSharp
         public zio_compress Compress
         {
             get { return (zio_compress)((prop >> 32) & 0xff); }
+        }
+
+        public ushort PSize
+        {
+            get { return (ushort)((prop >> 16) & 0xffff); }
+        }
+
+        public ushort LSize
+        {
+            get { return (ushort)(prop & 0xffff); }
+        }
+    }
+
+    enum EmbeddedType : byte
+    {
+        Data,
+        Reserved,
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    struct EmbeddedProperties
+    {
+        long prop;
+
+        public EmbeddedType EmbedType
+        {
+            get { return (EmbeddedType)((prop >> 40) & 0xff); }
+        }
+
+        public zio_compress Compress
+        {
+            get { return (zio_compress)((prop >> 32) & 0x7f); }
+        }
+
+        public ushort PSize
+        {
+            get { return (ushort)((prop >> 25) & 0x7f); }
+        }
+
+        public uint LSize
+        {
+            get { return (uint)(prop & 0x1ffffff); }
+        }
+    }
+
+    [StructLayout(LayoutKind.Explicit, Pack = 1)]
+    unsafe struct blkptr_t : IEquatable<blkptr_t>
+    {
+        public const int SPA_BLKPTRSHIFT = 7;
+        public const int SPA_DVAS_PER_BP = 3;
+
+        public const int EM_DATA_1_SIZE = 6 * 8;
+        public const int EM_DATA_2_SIZE = 3 * 8;
+        public const int EM_DATA_3_SIZE = 5 * 8;
+        public const int EM_DATA_SIZE = EM_DATA_1_SIZE + EM_DATA_2_SIZE + EM_DATA_3_SIZE;
+
+        [FieldOffset(0)]
+        public fixed byte EmbeddedData1[EM_DATA_1_SIZE];
+        [FieldOffset(7 * 8)]
+        public fixed byte EmbeddedData2[EM_DATA_2_SIZE];
+        [FieldOffset(0xb * 8)]
+        public fixed byte EmbeddedData3[EM_DATA_3_SIZE];
+
+        [FieldOffset(0)]
+        public dva_t dva1;
+        [FieldOffset(16)]
+        public dva_t dva2;
+        [FieldOffset(32)]
+        public dva_t dva3;
+
+        [FieldOffset(48)]
+        long prop;
+        [FieldOffset(48)]
+        NormalProperties NormalProps;
+        [FieldOffset(48)]
+        EmbeddedProperties EmbedProps;
+
+        [FieldOffset(56)]
+        long pad1;
+        [FieldOffset(64)]
+        long pad2;
+        [FieldOffset(72)]
+        public long phys_birth;
+        [FieldOffset(80)]
+        public long birth;
+        [FieldOffset(88)]
+        public long fill;
+        [FieldOffset(96)]
+        public zio_cksum_t cksum;
+
+        public bool IsEmbedded
+        {
+            get { return ((prop >> 39) & 1) != 0; }
+        }
+
+        public bool IsLittleEndian
+        {
+            get { return (prop >> 63) != 0; }
+        }
+
+        public int Level
+        {
+            get { return (int)((prop >> 56) & 0x1f); }
+        }
+
+        public EmbeddedType EmbedType
+        {
+            get
+            {
+                if (!IsEmbedded)
+                    throw new Exception("EmbedType is only supported on embedded data block pointers.");
+                return EmbedProps.EmbedType;
+            }
+        }
+
+        public zio_checksum Checksum
+        {
+            get
+            {
+                if (IsEmbedded)
+                    throw new NotSupportedException("Embedded data in block pointers does not have a checksum.");
+                return NormalProps.Checksum;
+            }
+        }
+
+        public zio_compress Compress
+        {
+            get
+            {
+                if (IsEmbedded)
+                    return EmbedProps.Compress;
+                else
+                    return NormalProps.Compress;
+            }
         }
 
         public dmu_object_type_t Type
@@ -115,22 +225,37 @@ namespace ZfsSharp
 
         public ushort PSize
         {
-            get { return (ushort)((prop >> 16) & 0xffff); }
+            get
+            {
+                if (IsEmbedded)
+                    return EmbedProps.PSize;
+                else
+                    return NormalProps.PSize;
+            }
         }
 
-        public ushort LSize
+        public uint LSize
         {
-            get { return (ushort)(prop & 0xffff); }
+            get
+            {
+                if (IsEmbedded)
+                    return EmbedProps.LSize;
+                else
+                    return NormalProps.LSize;
+            }
         }
 
         public bool IsHole
         {
-            get { return dva1.IsEmpty; }
+            get
+            {
+                return !IsEmbedded && dva1.IsEmpty;
+            }
         }
 
         public bool Equals(blkptr_t other)
         {
-            if (this.Checksum != zio_checksum.OFF)
+            if (this.NormalProps.Checksum != zio_checksum.OFF)
                 return this.cksum.Equals(other.cksum);
             return false; // don't worry about blocks without checksums for now
         }

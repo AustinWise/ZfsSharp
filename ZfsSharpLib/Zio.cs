@@ -35,21 +35,57 @@ namespace ZfsSharp
             }
         }
 
+        unsafe byte[] ReadEmbedded(blkptr_t blkptr)
+        {
+            //Console.WriteLine(blkptr.EmbeddedData1[0]);
+            if (blkptr.EmbedType != EmbeddedType.Data)
+                throw new Exception("Unsupported embedded type: " + blkptr.EmbedType);
+
+            int physicalSize = blkptr.PSize + 1;
+            if (physicalSize > blkptr_t.EM_DATA_SIZE)
+                throw new Exception("PSize is too big!");
+            byte[] physicalBytes = new byte[physicalSize];
+
+            int bytesRead = 0;
+
+            for (int i = 0; bytesRead < physicalSize && i < blkptr_t.EM_DATA_1_SIZE; i++)
+            {
+                physicalBytes[bytesRead++] = blkptr.EmbeddedData1[i];
+            }
+            for (int i = 0; bytesRead < physicalSize && i < blkptr_t.EM_DATA_2_SIZE; i++)
+            {
+                physicalBytes[bytesRead++] = blkptr.EmbeddedData2[i];
+            }
+            for (int i = 0; bytesRead < physicalSize && i < blkptr_t.EM_DATA_3_SIZE; i++)
+            {
+                physicalBytes[bytesRead++] = blkptr.EmbeddedData3[i];
+            }
+
+            byte[] logicalBytes = new byte[blkptr.LSize + 1];
+            mCompression[blkptr.Compress].Decompress(physicalBytes, logicalBytes);
+            return logicalBytes;
+        }
+
         public byte[] Read(blkptr_t blkptr)
         {
-            if (blkptr.phys_birth != 0)
-                throw new Exception("Non-zero phys birth.  This is not an error, want to see it when I read it.");
-
-            if (blkptr.IsHole)
-                throw new Exception("Block pointer is a hole.");
-            if (blkptr.fill == 0)
-                throw new NotSupportedException("There is no data in this block pointer.");
             if (blkptr.birth == 0)
                 throw new NotSupportedException("Invalid block pointer: 0 birth txg.");
+            if (blkptr.IsHole)
+                throw new Exception("Block pointer is a hole.");
             if (blkptr.IsDedup)
                 throw new NotImplementedException("dedup not supported.");
             if (blkptr.IsLittleEndian != BitConverter.IsLittleEndian)
                 throw new NotImplementedException("Byte swapping not implemented.");
+
+            if (blkptr.IsEmbedded)
+            {
+                return ReadEmbedded(blkptr);
+            }
+
+            if (blkptr.phys_birth != 0)
+                throw new Exception("Non-zero phys birth.  This is not an error, want to see it when I read it.");
+            if (blkptr.fill == 0)
+                throw new NotSupportedException("There is no data in this block pointer.");
 
             //try
             {
@@ -97,7 +133,6 @@ namespace ZfsSharp
 
                 byte[] logicalBytes = new byte[((long)blkptr.LSize + 1) * SECTOR_SIZE];
                 mCompression[blkptr.Compress].Decompress(physicalBytes, logicalBytes);
-
                 return logicalBytes;
             }
 
