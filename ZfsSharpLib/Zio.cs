@@ -142,10 +142,7 @@ namespace ZfsSharp
         public unsafe T Get<T>(blkptr_t blkptr) where T : struct
         {
             byte[] bytes = Read(blkptr);
-            if (Marshal.SizeOf(typeof(T)) > bytes.Length)
-                throw new Exception("Struct too big.");
-            fixed (byte* ptr = bytes)
-                return (T)Marshal.PtrToStructure(new IntPtr(ptr), typeof(T));
+            return Program.ToStruct<T>(bytes);
         }
 
         class NoCompression : ICompression

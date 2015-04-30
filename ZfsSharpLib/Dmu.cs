@@ -38,7 +38,7 @@ namespace ZfsSharp
             if (structSize > dn.BonusLen)
                 throw new ArgumentOutOfRangeException();
 
-            return (T)Marshal.PtrToStructure(new IntPtr(dn.Bonus + bonusOffset), typeof(T));
+            return Program.ToStruct<T>(dn.Bonus, bonusOffset, maxBonusSize);
         }
 
         public byte[] ReadSpill(dnode_phys_t dn)

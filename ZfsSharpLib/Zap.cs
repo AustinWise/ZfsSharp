@@ -20,7 +20,7 @@ namespace ZfsSharp
             var zapBytes = mDmu.Read(dn);
             fixed (byte* ptr = zapBytes)
             {
-                mzap_phys_t zapHeader = (mzap_phys_t)Marshal.PtrToStructure(new IntPtr(ptr), typeof(mzap_phys_t));
+                mzap_phys_t zapHeader = Program.ToStruct<mzap_phys_t>(ptr, 0, zapBytes.Length);
 
                 if (zapHeader.BlockType == ZapBlockType.MICRO)
                     return ParseMicro(ptr, zapBytes.Length).ToDictionary(d => d.Key, d => (object)d.Value);
@@ -42,7 +42,7 @@ namespace ZfsSharp
             var zapBytes = mDmu.Read(dn);
             fixed (byte* ptr = zapBytes)
             {
-                mzap_phys_t zapHeader = (mzap_phys_t)Marshal.PtrToStructure(new IntPtr(ptr), typeof(mzap_phys_t));
+                mzap_phys_t zapHeader = Program.ToStruct<mzap_phys_t>(ptr, 0, zapBytes.Length);
 
                 if (zapHeader.BlockType == ZapBlockType.MICRO)
                     return ParseMicro(ptr, zapBytes.Length);
@@ -73,7 +73,7 @@ namespace ZfsSharp
             Dictionary<string, long> ret = new Dictionary<string, long>();
             for (int i = sizeof(mzap_phys_t); i < length; i += sizeof(mzap_ent_phys_t))
             {
-                mzap_ent_phys_t entry = (mzap_ent_phys_t)Marshal.PtrToStructure(new IntPtr(ptr + i), typeof(mzap_ent_phys_t));
+                mzap_ent_phys_t entry = Program.ToStruct<mzap_ent_phys_t>(ptr, i, length);
                 if (string.IsNullOrEmpty(entry.Name))
                     continue;
                 if (entry.CD != 0)
