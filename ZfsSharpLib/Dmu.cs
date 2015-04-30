@@ -105,6 +105,8 @@ namespace ZfsSharp
 
         private void readBlock(blkptr_t blkptr, byte[] dest, long destOffset, long startNdx, long cpyCount)
         {
+            if (blkptr.IsHole)
+                return;
             var src = mZio.Read(blkptr);
             Program.LongBlockCopy(src, startNdx, dest, destOffset, cpyCount);
         }
@@ -122,7 +124,7 @@ namespace ZfsSharp
             }
 
             blkptr_t ptr = dn.GetBlkptr(indirOffsets.Pop());
-            while (indirOffsets.Count != 0)
+            while (indirOffsets.Count != 0 && !ptr.IsHole)
             {
                 var indirBlock = mZio.Read(ptr);
                 var indirectNdx = indirOffsets.Pop();
