@@ -121,10 +121,7 @@ namespace ZfsSharp
                 using (var s = new MemoryStream(physicalBytes))
                 {
                     var chk = mChecksums[blkptr.Checksum].Calculate(s, physicalSize);
-                    if (chk.word1 != blkptr.cksum.word1 ||
-                        chk.word2 != blkptr.cksum.word2 ||
-                        chk.word3 != blkptr.cksum.word3 ||
-                        chk.word4 != blkptr.cksum.word4)
+                    if (!chk.Equals(blkptr.cksum))
                     {
                         Console.WriteLine("Checksum fail."); //TODO: proper logging
                         continue;

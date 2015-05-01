@@ -13,10 +13,10 @@ namespace ZfsSharp
 
         public bool Equals(zio_cksum_t other)
         {
-            return (this.word1 != other.word1 ||
-                    this.word2 != other.word2 ||
-                    this.word3 != other.word3 ||
-                    this.word4 != other.word4);
+            return (this.word1 == other.word1 &&
+                    this.word2 == other.word2 &&
+                    this.word3 == other.word3 &&
+                    this.word4 == other.word4);
         }
 
         public override int GetHashCode()

@@ -23,8 +23,7 @@ namespace ZfsSharp
             }
             this.Uberblock = blocks.OrderByDescending(u => u.Txg).First();
 
-            using (var s = new MemoryStream(hdd.ReadBytes(16 << 10, 112 << 10)))
-                Config = new NvList(s);
+            Config = new NvList(hdd.ReadBytes(16 << 10, 112 << 10));
 
             const int VDevLableSizeStart = 4 << 20;
             const int VDevLableSizeEnd = 512 << 10;
