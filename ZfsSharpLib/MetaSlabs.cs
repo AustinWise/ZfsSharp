@@ -6,16 +6,15 @@ namespace ZfsSharp
     {
         //TODO: store each meta slab's range map separately
         RangeMap mRangeMap = new RangeMap();
-        objset_phys_t mMos;
+        ObjectSet mMos;
         Dmu mDmu;
 
-        public MetaSlabs(objset_phys_t mos, Dmu dmu, long metaSlabArray, int metaSlabShift, int aShift)
+        public MetaSlabs(ObjectSet mos, Dmu dmu, long metaSlabArray, int metaSlabShift, int aShift)
         {
             mMos = mos;
             mDmu = dmu;
 
-            var dn = dmu.ReadFromObjectSet(mos, metaSlabArray);
-            var someBytes = dmu.Read(dn);
+            var someBytes = mos.ReadContent(metaSlabArray);
 
             long[] ids = new long[someBytes.Length / 8];
             Buffer.BlockCopy(someBytes, 0, ids, 0, someBytes.Length);
@@ -37,7 +36,7 @@ namespace ZfsSharp
 
         void LoadEntrysForMetaSlab(long dnEntry, ulong start, ulong size, int sm_shift)
         {
-            dnode_phys_t dn = mDmu.ReadFromObjectSet(mMos, dnEntry);
+            dnode_phys_t dn = mMos.ReadEntry(dnEntry);
             if (dn.Type != dmu_object_type_t.SPACE_MAP || dn.BonusType != dmu_object_type_t.SPACE_MAP_HEADER)
                 throw new Exception("Not a space map.");
 

@@ -21,7 +21,7 @@ namespace ZfsSharp.VirtualDevices
         }
 
         //a bit of a layering violation
-        public void InitMetaSlabs(objset_phys_t mos, Dmu dmu)
+        public void InitMetaSlabs(ObjectSet mos, Dmu dmu)
         {
             mMetaSlabs = new MetaSlabs(mos, dmu, (long)MetaSlabArray.Value, (int)MetaSlabShift.Value, (int)AShift.Value);
         }

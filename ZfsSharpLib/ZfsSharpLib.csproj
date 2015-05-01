@@ -81,6 +81,7 @@
     <Compile Include="NvList.cs" />
     <Compile Include="HardDisk\VhdHardDisk.cs" />
     <Compile Include="NvListBinaryReader.cs" />
+    <Compile Include="ObjectSet.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RangeMap.cs" />

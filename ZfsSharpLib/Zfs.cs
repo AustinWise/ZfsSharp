@@ -26,7 +26,7 @@ namespace ZfsSharp
         Zio mZio;
         Dictionary<string, long> mObjDir;
         NvList mConfig;
-        objset_phys_t mMos;
+        ObjectSet mMos;
 
         /// <summary></summary>
         /// <param name="directory">A directory containing virtual hard disk files.</param>
@@ -79,7 +79,7 @@ namespace ZfsSharp
             mDmu = new Dmu(mZio);
             mZap = new Zap(mDmu);
 
-            mMos = mZio.Get<objset_phys_t>(ub.rootbp);
+            mMos = new ObjectSet(mDmu, mZio.Get<objset_phys_t>(ub.rootbp));
             if (mMos.Type != dmu_objset_type_t.DMU_OST_META)
                 throw new Exception("Given block pointer did not point to the MOS.");
 
@@ -87,13 +87,12 @@ namespace ZfsSharp
             //the second time we will make sure that space maps contain themselves
             mZio.InitMetaSlabs(mMos, mDmu);
 
-            dnode_phys_t objectDirectory = mDmu.ReadFromObjectSet(mMos, 1);
+            dnode_phys_t objectDirectory = mMos.ReadEntry(1);
             //The MOS's directory sometimes has things that don't like like directory entries.
             //For example, the "scan" entry has scrub status stuffed into as an array of longs.
             mObjDir = mZap.GetDirectoryEntries(objectDirectory, true);
 
-            var configDn = mDmu.ReadFromObjectSet(mMos, mObjDir[CONFIG]);
-            mConfig = new NvList(mDmu.Read(configDn));
+            mConfig = new NvList(mMos.ReadContent(mObjDir[CONFIG]));
 
             CheckVersion(mConfig);
             CheckFeatures();
@@ -103,7 +102,7 @@ namespace ZfsSharp
         {
             var fr = mZap.GetDirectoryEntries(mMos, mObjDir["features_for_read"]);
             var fw = mZap.GetDirectoryEntries(mMos, mObjDir["features_for_write"]);
-            var ff = mZap.Parse(mDmu.ReadFromObjectSet(mMos, mObjDir["feature_descriptions"])).ToDictionary(kvp => kvp.Key, kvp => Encoding.ASCII.GetString((byte[])kvp.Value));
+            var ff = mZap.Parse(mMos.ReadEntry(mObjDir["feature_descriptions"])).ToDictionary(kvp => kvp.Key, kvp => Encoding.ASCII.GetString((byte[])kvp.Value));
             if (fw.ContainsKey("com.delphix:enabled_txg") && fw["com.delphix:enabled_txg"] > 0)
             {
                 var fe = mZap.GetDirectoryEntries(mMos, mObjDir["feature_enabled_txg"]);

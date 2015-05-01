@@ -71,23 +71,10 @@ namespace ZfsSharp
             return bonus;
         }
 
-        unsafe public dnode_phys_t ReadFromObjectSet(objset_phys_t os, long index)
-        {
-            var dnStuff = Read(os.MetaDnode, index << dnode_phys_t.DNODE_SHIFT, sizeof(dnode_phys_t));
-            return Program.ToStruct<dnode_phys_t>(dnStuff);
-        }
-
         public byte[] Read(dnode_phys_t dn, long offset, long size)
         {
-            if (offset < 0 || size < 0)
-                throw new ArgumentOutOfRangeException();
-            long blockSize = dn.DataBlkSizeSec * 512;
-            long maxSize = (dn.MaxBlkId + 1) * blockSize;
-            if ((offset + size) > maxSize)
-                throw new ArgumentOutOfRangeException();
-
             var ret = new byte[size];
-            Program.MultiBlockCopy<blkptr_t>(ret, 0, offset, size, blockSize, blkId => GetBlock(ref dn, blkId), readBlock);
+            Read(dn, ret, offset, size);
             return ret;
         }
 

@@ -12,7 +12,7 @@ namespace ZfsSharp
         private Dmu mDmu;
         private Zio mZio;
         private dsl_dataset_phys_t mDataset;
-        private objset_phys_t mZfsObjset;
+        private ObjectSet mZfsObjset;
         private Dictionary<string, long> mZfsObjDir;
 
         private Dictionary<zpl_attr_t, int> mAttrSize = new Dictionary<zpl_attr_t, int>();
@@ -20,13 +20,13 @@ namespace ZfsSharp
 
         static readonly int SaHdrLengthOffset = Marshal.OffsetOf(typeof(sa_hdr_phys_t), "sa_lengths").ToInt32();
 
-        internal Zpl(objset_phys_t mos, long objectid, Zap zap, Dmu dmu, Zio zio)
+        internal Zpl(ObjectSet mos, long objectid, Zap zap, Dmu dmu, Zio zio)
         {
             this.mZap = zap;
             this.mDmu = dmu;
             this.mZio = zio;
 
-            var rootDataSetObj = dmu.ReadFromObjectSet(mos, objectid);
+            var rootDataSetObj = mos.ReadEntry(objectid);
             if (!DatasetDirectory.IsDataSet(rootDataSetObj))
                 throw new Exception("Not a DSL_DIR.");
             mDataset = dmu.GetBonus<dsl_dataset_phys_t>(rootDataSetObj);
@@ -38,16 +38,16 @@ namespace ZfsSharp
 
             if (mDataset.prev_snap_obj != 0)
             {
-                var dn = mDmu.ReadFromObjectSet(mos, mDataset.prev_snap_obj);
+                var dn = mos.ReadEntry(mDataset.prev_snap_obj);
                 var moreDs = dmu.GetBonus<dsl_dataset_phys_t>(dn);
             }
 
             if (mDataset.props_obj != 0)
             {
-                var someProps = mZap.Parse(mDmu.ReadFromObjectSet(mos, mDataset.props_obj));
+                var someProps = mZap.Parse(mos.ReadEntry(mDataset.props_obj));
             }
 
-            mZfsObjset = zio.Get<objset_phys_t>(mDataset.bp);
+            mZfsObjset = new ObjectSet(dmu, zio.Get<objset_phys_t>(mDataset.bp));
             if (mZfsObjset.Type != dmu_objset_type_t.DMU_OST_ZFS)
                 throw new NotSupportedException();
             mZfsObjDir = zap.GetDirectoryEntries(mZfsObjset, 1);
@@ -55,7 +55,7 @@ namespace ZfsSharp
                 throw new NotSupportedException();
 
             var saAttrs = zap.GetDirectoryEntries(mZfsObjset, mZfsObjDir["SA_ATTRS"]);
-            var saLayouts = zap.Parse(dmu.ReadFromObjectSet(mZfsObjset, saAttrs["LAYOUTS"]));
+            var saLayouts = zap.Parse(mZfsObjset.ReadEntry(saAttrs["LAYOUTS"]));
             var saRegistry = zap.GetDirectoryEntries(mZfsObjset, saAttrs["REGISTRY"]);
 
             mAttrSize = new Dictionary<zpl_attr_t, int>();
@@ -80,7 +80,7 @@ namespace ZfsSharp
         {
             get
             {
-                var dn = mDmu.ReadFromObjectSet(mZfsObjset, mZfsObjDir["ROOT"]);
+                var dn = mZfsObjset.ReadEntry(mZfsObjDir["ROOT"]);
                 return new ZfsDirectory(this, dn);
             }
         }
@@ -88,7 +88,7 @@ namespace ZfsSharp
         public byte[] GetFileContents(string path)
         {
             var fileId = GetFsObjectId(path);
-            var fileDn = mDmu.ReadFromObjectSet(mZfsObjset, fileId);
+            var fileDn = mZfsObjset.ReadEntry(fileId);
             if (fileDn.Type != dmu_object_type_t.PLAIN_FILE_CONTENTS)
                 throw new NotSupportedException();
             var fileSize = GetFileSize(fileDn);
@@ -413,7 +413,7 @@ namespace ZfsSharp
                 {
                     string name = kvp.Key;
                     long objId = kvp.Value;
-                    var dn = mZpl.mDmu.ReadFromObjectSet(mZpl.mZfsObjset, objId);
+                    var dn = mZpl.mZfsObjset.ReadEntry(objId);
 
                     if (dn.Type == dmu_object_type_t.DIRECTORY_CONTENTS)
                         yield return new ZfsDirectory(mZpl, this, name, dn);
