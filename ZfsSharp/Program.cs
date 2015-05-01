@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 
@@ -40,13 +41,30 @@ namespace ZfsSharp
                 }
             }
 
-            /*
-             * TODO:
-             *  DSL
-             *  Complete Fat ZAP
-             */
-
             Console.WriteLine();
+        }
+
+        private static void DumpContents(string outPath, Zpl.ZfsItem item)
+        {
+            Console.WriteLine(item.FullPath);
+            var dir = item as Zpl.ZfsDirectory;
+            var file = item as Zpl.ZfsFile;
+
+            var dest = Path.Combine(outPath, item.FullPath.Substring(1));
+
+            if (file != null)
+            {
+                File.WriteAllBytes(dest, file.GetContents());
+            }
+
+            if (dir == null)
+                return;
+            if (!Directory.Exists(dest))
+                Directory.CreateDirectory(dest);
+            foreach (var d in dir.GetChildren())
+            {
+                DumpContents(outPath, d);
+            }
         }
 
         private static void BenchmarkFileReading(Zfs zfs)
