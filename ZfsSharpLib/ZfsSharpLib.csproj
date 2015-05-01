@@ -40,6 +40,9 @@
     <StartupObject />
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="ICSharpCode.SharpZipLib">
+      <HintPath>..\packages\SharpZipLib.0.86.0\lib\20\ICSharpCode.SharpZipLib.dll</HintPath>
+    </Reference>
     <Reference Include="Lz4Net">
       <HintPath>..\packages\Lz4.Net.1.0.98\lib\net40\Lz4Net.dll</HintPath>
     </Reference>
@@ -64,6 +67,7 @@
     <Compile Include="DataSetType.cs" />
     <Compile Include="Dmu.cs" />
     <Compile Include="Flecter4.cs" />
+    <Compile Include="GZip.cs" />
     <Compile Include="HardDisk\FileHardDisk.cs" />
     <Compile Include="HardDisk\GptHardDrive.cs" />
     <Compile Include="HardDisk\HardDisk.cs" />
