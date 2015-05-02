@@ -41,7 +41,7 @@ namespace ZfsSharp
             }
         }
 
-        unsafe byte[] ReadEmbedded(blkptr_t blkptr)
+        unsafe void ReadEmbedded(blkptr_t blkptr, ArraySegment<byte> dest)
         {
             //Console.WriteLine(blkptr.EmbeddedData1[0]);
             if (blkptr.EmbedType != EmbeddedType.Data)
@@ -67,12 +67,10 @@ namespace ZfsSharp
                 physicalBytes[bytesRead++] = blkptr.EmbeddedData3[i];
             }
 
-            byte[] logicalBytes = new byte[blkptr.LSize + 1];
-            mCompression[blkptr.Compress].Decompress(physicalBytes, logicalBytes);
-            return logicalBytes;
+            mCompression[blkptr.Compress].Decompress(physicalBytes, dest);
         }
 
-        public byte[] Read(blkptr_t blkptr)
+        public void Read(blkptr_t blkptr, ArraySegment<byte> dest)
         {
             if (blkptr.birth == 0)
                 throw new NotSupportedException("Invalid block pointer: 0 birth txg.");
@@ -82,10 +80,13 @@ namespace ZfsSharp
                 throw new NotImplementedException("dedup not supported.");
             if (blkptr.IsLittleEndian != BitConverter.IsLittleEndian)
                 throw new NotImplementedException("Byte swapping not implemented.");
+            if (LogicalSize(ref blkptr) != dest.Count)
+                throw new ArgumentOutOfRangeException("dest", "Dest does not match logical size of block pointer.");
 
             if (blkptr.IsEmbedded)
             {
-                return ReadEmbedded(blkptr);
+                ReadEmbedded(blkptr, dest);
+                return;
             }
 
             if (blkptr.phys_birth != 0)
@@ -93,28 +94,11 @@ namespace ZfsSharp
             if (blkptr.fill == 0)
                 throw new NotSupportedException("There is no data in this block pointer.");
 
-            //try
-            {
-                return Read(blkptr, blkptr.dva1);
-            }
-            //catch
-            {
-                //if (blkptr.dva2.Offset == 0)
-                //    throw;
-                //try
-                //{
-                //    return Read(blkptr, blkptr.dva2);
-                //}
-                //catch
-                //{
-                //    if (blkptr.dva3.Offset == 0)
-                //        throw;
-                //    return Read(blkptr, blkptr.dva3);
-                //}
-            }
+            //TODO: try other DVAs
+            Read(blkptr, blkptr.dva1, dest);
         }
 
-        private byte[] Read(blkptr_t blkptr, dva_t dva)
+        private void Read(blkptr_t blkptr, dva_t dva, ArraySegment<byte> dest)
         {
             if (dva.IsGang)
                 throw new NotImplementedException("Gang not supported.");
@@ -131,9 +115,8 @@ namespace ZfsSharp
                     continue;
                 }
 
-                byte[] logicalBytes = new byte[((long)blkptr.LSize + 1) * SECTOR_SIZE];
-                mCompression[blkptr.Compress].Decompress(physicalBytes, logicalBytes);
-                return logicalBytes;
+                mCompression[blkptr.Compress].Decompress(physicalBytes, dest);
+                return;
             }
 
             throw new Exception("Could not find a correct copy of the requested data.");
@@ -141,15 +124,24 @@ namespace ZfsSharp
 
         public unsafe T Get<T>(blkptr_t blkptr) where T : struct
         {
-            byte[] bytes = Read(blkptr);
+            byte[] bytes = new byte[LogicalSize(ref blkptr)];
+            Read(blkptr, new ArraySegment<byte>(bytes));
             return Program.ToStruct<T>(bytes);
+        }
+
+        public int LogicalSize(ref blkptr_t bp)
+        {
+            int ret = (int)(bp.LSize + 1);
+            if (!bp.IsEmbedded)
+                ret *= SECTOR_SIZE;
+            return ret;
         }
 
         class NoCompression : ICompression
         {
-            public void Decompress(byte[] input, byte[] output)
+            public void Decompress(byte[] input, ArraySegment<byte> output)
             {
-                Buffer.BlockCopy(input, 0, output, 0, input.Length);
+                Buffer.BlockCopy(input, 0, output.Array, output.Offset, input.Length);
             }
         }
     }
@@ -161,6 +153,6 @@ namespace ZfsSharp
 
     interface ICompression
     {
-        void Decompress(byte[] input, byte[] output);
+        void Decompress(byte[] input, ArraySegment<byte> output);
     }
 }

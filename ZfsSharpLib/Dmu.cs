@@ -54,7 +54,9 @@ namespace ZfsSharp
                 throw new NotImplementedException("Only spill pointers with fill = 1 supported.");
             }
 
-            return mZio.Read(spill);
+            var ret = new byte[mZio.LogicalSize(ref spill)];
+            mZio.Read(spill, new ArraySegment<byte>(ret));
+            return ret;
         }
 
         unsafe public byte[] ReadBonus(dnode_phys_t dn)
@@ -94,8 +96,17 @@ namespace ZfsSharp
         {
             if (blkptr.IsHole)
                 return;
-            var src = mZio.Read(blkptr);
-            Program.LongBlockCopy(src, startNdx, dest, destOffset, cpyCount);
+            int logicalBlockSize = mZio.LogicalSize(ref blkptr);
+            if (logicalBlockSize == cpyCount)
+            {
+                mZio.Read(blkptr, new ArraySegment<byte>(dest, (int)destOffset, (int)cpyCount));
+            }
+            else
+            {
+                var src = new byte[logicalBlockSize];
+                mZio.Read(blkptr, new ArraySegment<byte>(src));
+                Program.LongBlockCopy(src, startNdx, dest, destOffset, cpyCount);
+            }
         }
 
         private blkptr_t GetBlock(ref dnode_phys_t dn, long blockId)
@@ -111,12 +122,18 @@ namespace ZfsSharp
             }
 
             blkptr_t ptr = dn.GetBlkptr(indirOffsets.Pop());
-            while (indirOffsets.Count != 0 && !ptr.IsHole)
+
+            if (indirOffsets.Count != 0)
             {
-                var indirBlock = mZio.Read(ptr);
-                var indirectNdx = indirOffsets.Pop();
-                ptr = Program.ToStruct<blkptr_t>(indirBlock, indirectNdx * (1 << blkptr_t.SPA_BLKPTRSHIFT));
+                byte[] indirBlock = new byte[1 << dn.IndirectBlockShift];
+                while (indirOffsets.Count != 0 && !ptr.IsHole)
+                {
+                    mZio.Read(ptr, new ArraySegment<byte>(indirBlock));
+                    var indirectNdx = indirOffsets.Pop();
+                    ptr = Program.ToStruct<blkptr_t>(indirBlock, indirectNdx * (1 << blkptr_t.SPA_BLKPTRSHIFT));
+                }
             }
+
             return ptr;
         }
 
