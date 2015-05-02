@@ -199,6 +199,11 @@ namespace ZfsSharp
             }
         }
 
+        public static uint ReadUInt32(byte[] bytes, int offset)
+        {
+            return (uint)(bytes[offset] | bytes[offset + 1] << 8 | bytes[offset + 2] << 16 | bytes[offset + 3] << 24);
+        }
+
         public const int SPA_MINBLOCKSHIFT = 9;
         public const int SPA_MAXBLOCKSHIFT = 17;
         const long SPA_MINBLOCKSIZE = (1L << SPA_MINBLOCKSHIFT);

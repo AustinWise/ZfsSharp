@@ -124,14 +124,11 @@ namespace ZfsSharp
             int physicalSize = ((int)blkptr.PSize + 1) * SECTOR_SIZE;
             foreach (byte[] physicalBytes in dev.ReadBytes(dva.Offset << 9, physicalSize))
             {
-                using (var s = new MemoryStream(physicalBytes))
+                var chk = mChecksums[blkptr.Checksum].Calculate(physicalBytes);
+                if (!chk.Equals(blkptr.cksum))
                 {
-                    var chk = mChecksums[blkptr.Checksum].Calculate(s, physicalSize);
-                    if (!chk.Equals(blkptr.cksum))
-                    {
-                        Console.WriteLine("Checksum fail."); //TODO: proper logging
-                        continue;
-                    }
+                    Console.WriteLine("Checksum fail."); //TODO: proper logging
+                    continue;
                 }
 
                 byte[] logicalBytes = new byte[((long)blkptr.LSize + 1) * SECTOR_SIZE];
@@ -159,7 +156,7 @@ namespace ZfsSharp
 
     interface IChecksum
     {
-        zio_cksum_t Calculate(Stream s, long byteCount);
+        zio_cksum_t Calculate(byte[] input);
     }
 
     interface ICompression

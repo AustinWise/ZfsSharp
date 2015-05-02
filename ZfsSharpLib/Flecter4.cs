@@ -4,15 +4,14 @@ namespace ZfsSharp
 {
     class Flecter4 : IChecksum
     {
-        public zio_cksum_t Calculate(Stream s, long byteCount)
+        public zio_cksum_t Calculate(byte[] input)
         {
-            BinaryReader r = new BinaryReader(s);
             ulong a, b, c, d;
             a = b = c = d = 0;
-            long size = byteCount / 4;
+            int size = input.Length / 4;
             for (int i = 0; i < size; i++)
             {
-                a += r.ReadUInt32();
+                a += Program.ReadUInt32(input, i * 4);
                 b += a;
                 c += b;
                 d += c;
