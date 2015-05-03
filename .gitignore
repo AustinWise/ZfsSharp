@@ -5,6 +5,3 @@ obj
 *.cache
 TestResults
 packages
-
-x86
-x64
