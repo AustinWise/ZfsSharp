@@ -22,8 +22,9 @@ namespace ZfsSharp
             }
 
             var newRange = new SpaceRange(offset, range);
-
             var near = mTree.FindNearestValues(newRange);
+
+            //try to merge with the left
             if (near.Item1 != null)
             {
                 if (near.Item1.Intersects(newRange))
@@ -35,7 +36,9 @@ namespace ZfsSharp
                     newRange = new SpaceRange(near.Item1.Offset, near.Item1.Range + newRange.Range);
                 }
             }
-            else if (near.Item2 != null)
+
+            //try to merge with the right
+            if (near.Item2 != null)
             {
                 if (near.Item2.Intersects(newRange))
                     throw new Exception("Range already added.");
