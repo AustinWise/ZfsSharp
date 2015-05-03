@@ -4,38 +4,51 @@ namespace ZfsSharp
 {
     class MetaSlabs
     {
-        //TODO: store each meta slab's range map separately
-        RangeMap mRangeMap = new RangeMap();
+        RangeMap[] mRangeMap;
         ObjectSet mMos;
         Dmu mDmu;
+        long mSlabSize;
 
         public MetaSlabs(ObjectSet mos, Dmu dmu, long metaSlabArray, int metaSlabShift, int aShift)
         {
             mMos = mos;
             mDmu = dmu;
+            mSlabSize = 1L << metaSlabShift;
 
             var someBytes = mos.ReadContent(metaSlabArray);
+            int numberOfSlabs = someBytes.Length / 8;
+            mRangeMap = new RangeMap[numberOfSlabs];
 
-            long[] ids = new long[someBytes.Length / 8];
+            long[] ids = new long[numberOfSlabs];
             Buffer.BlockCopy(someBytes, 0, ids, 0, someBytes.Length);
 
-            for (int i = 0; i < ids.Length; i++)
+            for (int i = 0; i < numberOfSlabs; i++)
             {
                 var id = ids[i];
+                RangeMap map;
                 if (id == 0)
-                    continue;
-
-                LoadEntrysForMetaSlab(id, (ulong)i << metaSlabShift, 1UL << metaSlabShift, aShift);
+                {
+                    map = new RangeMap();
+                }
+                else
+                {
+                    map = LoadEntrysForMetaSlab(id, aShift);
+                }
+                mRangeMap[i] = map;
             }
         }
 
         public bool ContainsRange(long offset, long range)
         {
-            return mRangeMap.ContainsRange((ulong)offset, (ulong)range);
+            long slabNdx = offset / mSlabSize;
+            offset = offset % mSlabSize;
+            return mRangeMap[slabNdx].ContainsRange((ulong)offset, (ulong)range);
         }
 
-        void LoadEntrysForMetaSlab(long dnEntry, ulong start, ulong size, int sm_shift)
+        RangeMap LoadEntrysForMetaSlab(long dnEntry, int sm_shift)
         {
+            RangeMap ret = new RangeMap();
+
             dnode_phys_t dn = mMos.ReadEntry(dnEntry);
             if (dn.Type != dmu_object_type_t.SPACE_MAP || dn.BonusType != dmu_object_type_t.SPACE_MAP_HEADER)
                 throw new Exception("Not a space map.");
@@ -52,18 +65,20 @@ namespace ZfsSharp
                 if (ent.IsDebug)
                     continue;
 
-                ulong offset = (ent.Offset << sm_shift) + start;
+                ulong offset = (ent.Offset << sm_shift);
                 ulong range = ent.Run << sm_shift;
                 //Console.WriteLine("\t    [{4,6}]    {0}  range: {1:x10}-{2:x10}  size: {3:x6}", ent.Type, offset, offset + range, range, i / 8);
                 if (ent.Type == SpaceMapEntryType.A)
                 {
-                    mRangeMap.AddRange(offset, range);
+                    ret.AddRange(offset, range);
                 }
                 else if (ent.Type == SpaceMapEntryType.F)
                 {
-                    mRangeMap.RemoveRange(offset, range);
+                    ret.RemoveRange(offset, range);
                 }
             }
+
+            return ret;
         }
     }
 }
