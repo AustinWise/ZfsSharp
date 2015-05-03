@@ -1,14 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Runtime.InteropServices;
-using System.IO;
+using System.Text;
 
 namespace ZfsSharp.HardDisks
 {
     class GptHardDrive : OffsetHardDisk
     {
+        readonly static SortedSet<Guid> sZfsPartitionTypes = new SortedSet<Guid>(new[] {
+            new Guid("6A898CC3-1DD2-11B2-99A6-080020736631"), //Solaris /usr (SmartOS partitions pools this way), also Mac ZFS apperently
+            new Guid("516E7CBA-6ECF-11D6-8FF8-00022D09712B"), //FreeBSD ZFS
+        });
         readonly static Guid SolarisUsrPartitionId = new Guid("6A898CC3-1DD2-11B2-99A6-080020736631");
 
         const string EfiMagic = "EFI PART";
@@ -108,10 +111,7 @@ namespace ZfsSharp.HardDisks
                 parts.Add(partEnt);
             }
 
-            //TODO: don't hard code this
-            mPartition = parts[0];
-            if (mPartition.Type != SolarisUsrPartitionId || mPartition.Name != "zfs")
-                throw new Exception("Not a ZFS partition.");
+            mPartition = parts.Where(p => sZfsPartitionTypes.Contains(p.Type)).Single();
 
             Init(hdd, SectorSize * mPartition.FirstLba, SectorSize * (mPartition.LastLba - mPartition.FirstLba));
         }
