@@ -86,7 +86,7 @@ namespace ZfsSharp
         {
             var ret = new Dictionary<string, object>();
             var header = Program.ToStruct<zap_phys_t>(ptr, 0, length);
-            var bs = highBit(dn.DataBlkSizeSec * 512);
+            var bs = highBit(dn.BlockSizeInBytes);
 
             if (header.zap_block_type != ZapBlockType.HEADER)
                 throw new Exception();

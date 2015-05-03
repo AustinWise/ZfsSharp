@@ -84,12 +84,10 @@ namespace ZfsSharp
         {
             if (offset < 0 || size < 0)
                 throw new ArgumentOutOfRangeException();
-            long blockSize = dn.DataBlkSizeSec * 512;
-            long maxSize = (dn.MaxBlkId + 1) * blockSize;
-            if ((offset + size) > maxSize)
+            if ((offset + size) > dn.AvailableDataSize)
                 throw new ArgumentOutOfRangeException();
 
-            Program.MultiBlockCopy<blkptr_t>(buffer, 0, offset, size, blockSize, blkId => GetBlock(ref dn, blkId), readBlock);
+            Program.MultiBlockCopy<blkptr_t>(buffer, 0, offset, size, dn.BlockSizeInBytes, blkId => GetBlock(ref dn, blkId), readBlock);
         }
 
         private void readBlock(blkptr_t blkptr, byte[] dest, long destOffset, long startNdx, long cpyCount)
@@ -139,7 +137,7 @@ namespace ZfsSharp
 
         public byte[] Read(dnode_phys_t dn)
         {
-            return Read(dn, 0, (dn.MaxBlkId + 1) * (dn.DataBlkSizeSec * 512));
+            return Read(dn, 0, dn.AvailableDataSize);
         }
     }
 }

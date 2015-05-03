@@ -235,14 +235,14 @@ namespace ZfsSharp
         [FieldOffset(7)]
         public DnodeFlags Flags;
         [FieldOffset(8)]
-        public short DataBlkSizeSec;
+        short DataBlkSizeSec;
         [FieldOffset(10)]
         public short BonusLen;
 
         //4 bytes of padding here
 
         [FieldOffset(0x10)]
-        public long MaxBlkId;
+        long MaxBlkId;
         /// <summary>
         /// The sum of all asize values for all block pointers (data and indirect) for this object.  May be in bytes.
         /// </summary>
@@ -280,6 +280,29 @@ namespace ZfsSharp
             }
         }
 
+        public long BlockSizeInBytes
+        {
+            get
+            {
+                return DataBlkSizeSec * 512;
+            }
+        }
+
+        /// <summary>
+        /// Maximum amount of data that can be read from this DNode.
+        /// </summary>
+        public long AvailableDataSize
+        {
+            get
+            {
+                return BlockSizeInBytes * (MaxBlkId + 1);
+            }
+        }
+
+        /// <summary>
+        /// Includes indirect blocks.
+        /// </summary>
+        /// <returns></returns>
         public long DN_USED_BYTES()
         {
             if ((this.Flags & DnodeFlags.UsedBytes) == 0)

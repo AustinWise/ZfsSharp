@@ -343,16 +343,20 @@ namespace ZfsSharp
 
             public byte[] GetContents()
             {
-                return mZpl.mDmu.Read(mDn, 0, Length);
+                var ret = new byte[Length];
+                mZpl.mDmu.Read(mDn, ret, 0, Math.Min(Length, mDn.AvailableDataSize));
+                return ret;
             }
 
             public byte[] GetContents(long offset, long count)
             {
+                //TODO: deal with files whose length is greater than the data allocated by the DNode
                 return mZpl.mDmu.Read(mDn, offset, count);
             }
 
             public void GetContents(byte[] buffer, long offset, long count)
             {
+                //TODO: deal with files whose length is greater than the data allocated by the DNode
                 mZpl.mDmu.Read(mDn, buffer, offset, count);
             }
 
