@@ -67,7 +67,7 @@
     <Compile Include="-\Throw.cs" />
     <Compile Include="DatasetDirectory.cs" />
     <Compile Include="DataSetType.cs" />
-    <Compile Include="Dmu.cs" />
+    <Compile Include="DNode.cs" />
     <Compile Include="Flecter4.cs" />
     <Compile Include="Compression\GZip.cs" />
     <Compile Include="HardDisk\FileHardDisk.cs" />
