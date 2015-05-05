@@ -33,11 +33,11 @@ namespace ZfsSharp
         }
 
         //a bit of a layering violation
-        public void InitMetaSlabs(ObjectSet mos, Dmu dmu)
+        public void InitMetaSlabs(ObjectSet mos)
         {
             foreach (var v in mVdevs)
             {
-                v.InitMetaSlabs(mos, dmu);
+                v.InitMetaSlabs(mos);
             }
         }
 

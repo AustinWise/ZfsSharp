@@ -9,7 +9,6 @@ namespace ZfsSharp
     public class Zpl
     {
         private Zap mZap;
-        private Dmu mDmu;
         private Zio mZio;
         private dsl_dataset_phys_t mDataset;
         private ObjectSet mZfsObjset;
@@ -20,16 +19,15 @@ namespace ZfsSharp
 
         static readonly int SaHdrLengthOffset = Marshal.OffsetOf(typeof(sa_hdr_phys_t), "sa_lengths").ToInt32();
 
-        internal Zpl(ObjectSet mos, long objectid, Zap zap, Dmu dmu, Zio zio)
+        internal Zpl(ObjectSet mos, long objectid, Zap zap, Zio zio)
         {
             this.mZap = zap;
-            this.mDmu = dmu;
             this.mZio = zio;
 
             var rootDataSetObj = mos.ReadEntry(objectid);
             if (!DatasetDirectory.IsDataSet(rootDataSetObj))
                 throw new Exception("Not a DSL_DIR.");
-            mDataset = dmu.GetBonus<dsl_dataset_phys_t>(rootDataSetObj);
+            mDataset = rootDataSetObj.GetBonus<dsl_dataset_phys_t>();
 
             if (rootDataSetObj.IsNewType && rootDataSetObj.NewType == dmu_object_byteswap.DMU_BSWAP_ZAP)
             {
@@ -39,7 +37,7 @@ namespace ZfsSharp
             if (mDataset.prev_snap_obj != 0)
             {
                 var dn = mos.ReadEntry(mDataset.prev_snap_obj);
-                var moreDs = dmu.GetBonus<dsl_dataset_phys_t>(dn);
+                var moreDs = dn.GetBonus<dsl_dataset_phys_t>();
             }
 
             if (mDataset.props_obj != 0)
@@ -47,7 +45,7 @@ namespace ZfsSharp
                 var someProps = mZap.Parse(mos.ReadEntry(mDataset.props_obj));
             }
 
-            mZfsObjset = new ObjectSet(dmu, zio.Get<objset_phys_t>(mDataset.bp));
+            mZfsObjset = new ObjectSet(mZio, zio.Get<objset_phys_t>(mDataset.bp));
             if (mZfsObjset.Type != dmu_objset_type_t.DMU_OST_ZFS)
                 throw new NotSupportedException();
             mZfsObjDir = zap.GetDirectoryEntries(mZfsObjset, 1);
@@ -112,36 +110,36 @@ namespace ZfsSharp
             return id;
         }
 
-        long GetFileSize(dnode_phys_t dn)
+        long GetFileSize(DNode dn)
         {
             return GetAttr<long>(dn, zpl_attr_t.ZPL_SIZE);
         }
 
-        ZfsItemType GetFileType(dnode_phys_t dn)
+        ZfsItemType GetFileType(DNode dn)
         {
             var mode = GetAttr<long>(dn, zpl_attr_t.ZPL_MODE);
             return (ZfsItemType)((mode >> 12) & 0xf);
         }
 
-        T GetAttr<T>(dnode_phys_t dn, zpl_attr_t attr) where T : struct
+        T GetAttr<T>(DNode dn, zpl_attr_t attr) where T : struct
         {
             var bytes = GetAttrBytes(dn, attr);
 
             return Program.ToStruct<T>(bytes);
         }
 
-        ArraySegment<byte> GetAttrBytes(dnode_phys_t dn, zpl_attr_t attr)
+        ArraySegment<byte> GetAttrBytes(DNode dn, zpl_attr_t attr)
         {
-            var bytes = mDmu.ReadBonus(dn);
+            var bytes = dn.ReadBonus();
             ArraySegment<byte> ret;
             if (GetAttrFromBytes(bytes, attr, out ret))
             {
                 return ret;
             }
 
-            if ((dn.Flags & DnodeFlags.SpillBlkptr) != 0 && dn.Spill.Type == dmu_object_type_t.SA)
+            if (dn.SpillType == dmu_object_type_t.SA)
             {
-                bytes = mDmu.ReadSpill(dn);
+                bytes = dn.ReadSpill();
                 if (GetAttrFromBytes(bytes, attr, out ret))
                 {
                     return ret;
@@ -182,12 +180,12 @@ namespace ZfsSharp
             return true;
         }
 
-        private byte[] GetSaBytes(dnode_phys_t dn)
+        private byte[] GetSaBytes(DNode dn)
         {
             if (dn.BonusType != dmu_object_type_t.SA)
                 throw new NotSupportedException();
 
-            var bonusBytes = mDmu.ReadBonus(dn);
+            var bonusBytes = dn.ReadBonus();
             return bonusBytes;
         }
 
@@ -258,9 +256,9 @@ namespace ZfsSharp
             static readonly DateTime sEpoc = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
             protected readonly Zpl mZpl;
-            internal readonly dnode_phys_t mDn;
+            internal readonly DNode mDn;
             protected readonly long mMode;
-            internal ZfsItem(Zpl zpl, ZfsDirectory parent, string name, dnode_phys_t dn)
+            internal ZfsItem(Zpl zpl, ZfsDirectory parent, string name, DNode dn)
             {
                 this.mZpl = zpl;
                 this.Name = name;
@@ -332,7 +330,7 @@ namespace ZfsSharp
 
         public class ZfsFile : ZfsItem
         {
-            internal ZfsFile(Zpl zpl, ZfsDirectory parent, string name, dnode_phys_t dn)
+            internal ZfsFile(Zpl zpl, ZfsDirectory parent, string name, DNode dn)
                 : base(zpl, parent, name, dn)
             {
                 Length = mZpl.GetAttr<long>(mDn, zpl_attr_t.ZPL_SIZE);
@@ -343,20 +341,20 @@ namespace ZfsSharp
                 if (Length > int.MaxValue || mDn.AvailableDataSize > int.MaxValue)
                     throw new Exception("Too much data to read all at once.");
                 var ret = new byte[Length];
-                mZpl.mDmu.Read(mDn, ret, 0, (int)Math.Min(Length, mDn.AvailableDataSize));
+                mDn.Read(ret, 0, (int)Math.Min(Length, mDn.AvailableDataSize));
                 return ret;
             }
 
             public byte[] GetContents(long offset, int count)
             {
                 //TODO: deal with files whose length is greater than the data allocated by the DNode
-                return mZpl.mDmu.Read(mDn, offset, count);
+                return mDn.Read(offset, count);
             }
 
             public void GetContents(byte[] buffer, long offset, int count)
             {
                 //TODO: deal with files whose length is greater than the data allocated by the DNode
-                mZpl.mDmu.Read(mDn, buffer, offset, count);
+                mDn.Read(buffer, offset, count);
             }
 
             public long Length { get; private set; }
@@ -369,7 +367,7 @@ namespace ZfsSharp
 
         public class ZfsSymLink : ZfsItem
         {
-            internal ZfsSymLink(Zpl zpl, ZfsDirectory parent, string name, dnode_phys_t dn)
+            internal ZfsSymLink(Zpl zpl, ZfsDirectory parent, string name, DNode dn)
                 : base(zpl, parent, name, dn)
             {
                 var bytes = zpl.GetAttrBytes(dn, zpl_attr_t.ZPL_SYMLINK);
@@ -386,12 +384,12 @@ namespace ZfsSharp
 
         public class ZfsDirectory : ZfsItem
         {
-            internal ZfsDirectory(Zpl zpl, dnode_phys_t dn)
+            internal ZfsDirectory(Zpl zpl, DNode dn)
                 : base(zpl, null, "/", dn)
             {
                 this.Parent = this;
             }
-            internal ZfsDirectory(Zpl zpl, ZfsDirectory parent, string name, dnode_phys_t dn)
+            internal ZfsDirectory(Zpl zpl, ZfsDirectory parent, string name, DNode dn)
                 : base(zpl, parent, name, dn)
             {
             }

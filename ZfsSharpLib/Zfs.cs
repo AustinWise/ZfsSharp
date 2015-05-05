@@ -22,7 +22,6 @@ namespace ZfsSharp
 
         List<LeafVdevInfo> mHdds;
         Zap mZap;
-        Dmu mDmu;
         Zio mZio;
         Dictionary<string, long> mObjDir;
         NvList mConfig;
@@ -76,18 +75,17 @@ namespace ZfsSharp
             var vdevs = Vdev.CreateVdevTree(mHdds);
 
             mZio = new Zio(vdevs);
-            mDmu = new Dmu(mZio);
-            mZap = new Zap(mDmu);
+            mZap = new Zap();
 
-            mMos = new ObjectSet(mDmu, mZio.Get<objset_phys_t>(ub.rootbp));
+            mMos = new ObjectSet(mZio, mZio.Get<objset_phys_t>(ub.rootbp));
             if (mMos.Type != dmu_objset_type_t.DMU_OST_META)
                 throw new Exception("Given block pointer did not point to the MOS.");
 
-            mZio.InitMetaSlabs(mMos, mDmu);
+            mZio.InitMetaSlabs(mMos);
             //the second time we will make sure that space maps contain themselves
-            mZio.InitMetaSlabs(mMos, mDmu);
+            mZio.InitMetaSlabs(mMos);
 
-            dnode_phys_t objectDirectory = mMos.ReadEntry(1);
+            var objectDirectory = mMos.ReadEntry(1);
             //The MOS's directory sometimes has things that don't like like directory entries.
             //For example, the "scan" entry has scrub status stuffed into as an array of longs.
             mObjDir = mZap.GetDirectoryEntries(objectDirectory, true);
@@ -143,7 +141,7 @@ namespace ZfsSharp
 
         void listDataSetName(long objectId, string nameBase, List<DatasetDirectory> ret)
         {
-            var dsd = new DatasetDirectory(mMos, objectId, nameBase, mZap, mDmu, mZio);
+            var dsd = new DatasetDirectory(mMos, objectId, nameBase, mZap, mZio);
             ret.Add(dsd);
 
             foreach (var kvp in dsd.GetChildren())

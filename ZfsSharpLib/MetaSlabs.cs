@@ -6,13 +6,11 @@ namespace ZfsSharp
     {
         RangeMap[] mRangeMap;
         ObjectSet mMos;
-        Dmu mDmu;
         long mSlabSize;
 
-        public MetaSlabs(ObjectSet mos, Dmu dmu, long metaSlabArray, int metaSlabShift, int aShift)
+        public MetaSlabs(ObjectSet mos, long metaSlabArray, int metaSlabShift, int aShift)
         {
             mMos = mos;
-            mDmu = dmu;
             mSlabSize = 1L << metaSlabShift;
 
             var someBytes = mos.ReadContent(metaSlabArray);
@@ -49,11 +47,11 @@ namespace ZfsSharp
         {
             RangeMap ret = new RangeMap();
 
-            dnode_phys_t dn = mMos.ReadEntry(dnEntry);
+            var dn = mMos.ReadEntry(dnEntry);
             if (dn.Type != dmu_object_type_t.SPACE_MAP || dn.BonusType != dmu_object_type_t.SPACE_MAP_HEADER)
                 throw new Exception("Not a space map.");
 
-            var head = mDmu.GetBonus<space_map_obj>(dn);
+            var head = dn.GetBonus<space_map_obj>();
 
             if (head.smo_object != dnEntry)
                 throw new Exception();
@@ -61,7 +59,7 @@ namespace ZfsSharp
             if (head.smo_objsize > int.MaxValue)
                 throw new Exception("Holy cow, this space map is greater than 2GB, what is wrong with your VDev!?!?");
 
-            var someBytes = mDmu.Read(dn, 0, (int)head.smo_objsize);
+            var someBytes = dn.Read(0, (int)head.smo_objsize);
             for (int i = 0; i < someBytes.Length; i += 8)
             {
                 var ent = Program.ToStruct<spaceMapEntry>(someBytes, i);

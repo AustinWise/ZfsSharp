@@ -9,16 +9,14 @@ namespace ZfsSharp
     {
         private ObjectSet mMos;
         private Zap mZap;
-        private Dmu mDmu;
         private Zio mZio;
         private dsl_dir_phys_t mDslDir;
         private Dictionary<string, long> mSnapShots = new Dictionary<string, long>();
 
-        internal DatasetDirectory(ObjectSet mos, long objectid, string name, Zap zap, Dmu dmu, Zio zio)
+        internal DatasetDirectory(ObjectSet mos, long objectid, string name, Zap zap, Zio zio)
         {
             this.mMos = mos;
             this.mZap = zap;
-            this.mDmu = dmu;
             this.mZio = zio;
             this.Name = name;
             this.Type = DataSetType.MetaData;
@@ -28,7 +26,7 @@ namespace ZfsSharp
                 throw new NotSupportedException("Expected DSL_DIR dnode.");
             if (rootDslObj.BonusType != dmu_object_type_t.DSL_DIR)
                 throw new NotSupportedException("Expected DSL_DIR bonus.");
-            mDslDir = dmu.GetBonus<dsl_dir_phys_t>(rootDslObj);
+            mDslDir = rootDslObj.GetBonus<dsl_dir_phys_t>();
             var rootDslProps = zap.Parse(mos.ReadEntry(mDslDir.props_zapobj));
 
             Dictionary<string, long> clones;
@@ -44,7 +42,7 @@ namespace ZfsSharp
                 throw new Exception("Not a dataset!");
             if (rootDataSetObj.BonusType != dmu_object_type_t.DSL_DATASET)
                 throw new Exception("Missing dataset bonus!");
-            var headDs = dmu.GetBonus<dsl_dataset_phys_t>(rootDataSetObj);
+            var headDs = rootDataSetObj.GetBonus<dsl_dataset_phys_t>();
 
             if (headDs.bp.IsHole && mDslDir.origin_obj == 0)
                 return; //this is $ORIGIN
@@ -80,7 +78,7 @@ namespace ZfsSharp
 
         private Zpl GetZfs(long objectid)
         {
-            return new Zpl(mMos, objectid, mZap, mDmu, mZio);
+            return new Zpl(mMos, objectid, mZap, mZio);
         }
 
         public IEnumerable<KeyValuePair<string, Zpl>> GetZfsSnapShots()
@@ -95,7 +93,7 @@ namespace ZfsSharp
             return mZap.GetDirectoryEntries(mMos, mDslDir.child_dir_zapobj);
         }
 
-        internal static bool IsDataSet(dnode_phys_t dn)
+        internal static bool IsDataSet(DNode dn)
         {
             return dn.Type == dmu_object_type_t.DSL_DATASET || (dn.IsNewType && dn.NewType == dmu_object_byteswap.DMU_BSWAP_ZAP);
         }

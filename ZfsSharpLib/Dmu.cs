@@ -4,51 +4,100 @@ using System.Runtime.InteropServices;
 
 namespace ZfsSharp
 {
-    class Dmu
+    class DNode
     {
         private Zio mZio;
-        public Dmu(Zio zio)
+        dnode_phys_t mPhys;
+
+        public DNode(Zio zio, dnode_phys_t phys)
         {
             mZio = zio;
+            mPhys = phys;
         }
 
-        unsafe static void CalculateBonusSize(ref dnode_phys_t dn, out int bonusOffset, out int maxBonusSize)
+        public dmu_object_type_t Type
         {
-            if (dn.BonusType == dmu_object_type_t.NONE)
+            get { return mPhys.Type; }
+        }
+
+        public dmu_object_type_t BonusType
+        {
+            get { return mPhys.BonusType; }
+        }
+
+        public bool IsNewType
+        {
+            get { return mPhys.IsNewType; }
+        }
+
+        public dmu_object_byteswap NewType
+        {
+            get { return mPhys.NewType; }
+        }
+
+        public int BlockSizeInBytes
+        {
+            get { return mPhys.BlockSizeInBytes; }
+        }
+
+        /// <summary>
+        /// Maximum amount of data that can be read from this DNode.
+        /// </summary>
+        public long AvailableDataSize
+        {
+            get { return mPhys.AvailableDataSize; }
+        }
+
+        public DnodeFlags Flags
+        {
+            get { return mPhys.Flags; }
+        }
+
+        public dmu_object_type_t SpillType
+        {
+            get { return (mPhys.Flags & DnodeFlags.SpillBlkptr) == 0 ? dmu_object_type_t.NONE : mPhys.Spill.Type; }
+        }
+
+        unsafe void CalculateBonusSize(out int bonusOffset, out int maxBonusSize)
+        {
+            if (mPhys.BonusType == dmu_object_type_t.NONE)
                 throw new Exception("No bonus type.");
 
-            bonusOffset = (dn.NBlkPtrs - 1) * sizeof(blkptr_t);
+            bonusOffset = (mPhys.NBlkPtrs - 1) * sizeof(blkptr_t);
             maxBonusSize = dnode_phys_t.DN_MAX_BONUSLEN - bonusOffset;
-            if ((dn.Flags & DnodeFlags.SpillBlkptr) != 0)
+            if ((mPhys.Flags & DnodeFlags.SpillBlkptr) != 0)
             {
                 maxBonusSize -= sizeof(blkptr_t);
             }
         }
 
-        unsafe public T GetBonus<T>(dnode_phys_t dn) where T : struct
+        unsafe public T GetBonus<T>() where T : struct
         {
             Type t = typeof(T);
             int structSize = Marshal.SizeOf(t);
             int bonusOffset;
             int maxBonusSize;
-            CalculateBonusSize(ref dn, out bonusOffset, out maxBonusSize);
+            CalculateBonusSize(out bonusOffset, out maxBonusSize);
 
             if (structSize > maxBonusSize)
                 throw new ArgumentOutOfRangeException();
-            if (structSize > dn.BonusLen)
+            if (structSize > mPhys.BonusLen)
                 throw new ArgumentOutOfRangeException();
 
-            return Program.ToStruct<T>(dn.Bonus, bonusOffset, maxBonusSize);
+            fixed (byte* pBonus = mPhys.Bonus)
+            {
+                return Program.ToStruct<T>(pBonus, bonusOffset, maxBonusSize);
+            }
         }
 
-        public byte[] ReadSpill(dnode_phys_t dn)
+        public byte[] ReadSpill()
         {
-            if ((dn.Flags & DnodeFlags.SpillBlkptr) == 0)
+            if ((mPhys.Flags & DnodeFlags.SpillBlkptr) == 0)
             {
                 throw new NotSupportedException("DNode does not have a spill block pointer.");
             }
 
-            var spill = dn.Spill;
+            var spill = mPhys.Spill;
             if (spill.fill != 1)
             {
                 throw new NotImplementedException("Only spill pointers with fill = 1 supported.");
@@ -59,35 +108,38 @@ namespace ZfsSharp
             return ret;
         }
 
-        unsafe public byte[] ReadBonus(dnode_phys_t dn)
+        unsafe public byte[] ReadBonus()
         {
             int bonusOffset;
             int maxBonusSize;
-            CalculateBonusSize(ref dn, out bonusOffset, out maxBonusSize);
+            CalculateBonusSize(out bonusOffset, out maxBonusSize);
 
-            if (dn.BonusLen > maxBonusSize)
+            if (mPhys.BonusLen > maxBonusSize)
                 throw new Exception("Specified bonus size is larger than the dnode can hold.");
 
-            byte[] bonus = new byte[dn.BonusLen];
-            Marshal.Copy(new IntPtr(dn.Bonus + bonusOffset), bonus, 0, dn.BonusLen);
+            byte[] bonus = new byte[mPhys.BonusLen];
+            fixed (byte* pBonus = mPhys.Bonus)
+            {
+                Marshal.Copy(new IntPtr(pBonus + bonusOffset), bonus, 0, mPhys.BonusLen);
+            }
             return bonus;
         }
 
-        public byte[] Read(dnode_phys_t dn, long offset, int size)
+        public byte[] Read(long offset, int size)
         {
             var ret = new byte[size];
-            Read(dn, ret, offset, size);
+            Read(ret, offset, size);
             return ret;
         }
 
-        public void Read(dnode_phys_t dn, byte[] buffer, long offset, int size)
+        public void Read(byte[] buffer, long offset, int size)
         {
             if (offset < 0 || size < 0)
                 throw new ArgumentOutOfRangeException();
-            if ((offset + size) > dn.AvailableDataSize)
+            if ((offset + size) > mPhys.AvailableDataSize)
                 throw new ArgumentOutOfRangeException();
 
-            Program.MultiBlockCopy<blkptr_t>(buffer, 0, offset, size, dn.BlockSizeInBytes, blkId => GetBlock(ref dn, blkId), readBlock);
+            Program.MultiBlockCopy<blkptr_t>(buffer, 0, offset, size, mPhys.BlockSizeInBytes, GetBlock, readBlock);
         }
 
         private void readBlock(blkptr_t blkptr, byte[] dest, int destOffset, int startNdx, int cpyCount)
@@ -107,23 +159,23 @@ namespace ZfsSharp
             }
         }
 
-        private blkptr_t GetBlock(ref dnode_phys_t dn, long blockId)
+        private blkptr_t GetBlock(long blockId)
         {
-            int indirBlockShift = dn.IndirectBlockShift - blkptr_t.SPA_BLKPTRSHIFT;
+            int indirBlockShift = mPhys.IndirectBlockShift - blkptr_t.SPA_BLKPTRSHIFT;
             long indirMask = (1 << indirBlockShift) - 1;
 
-            var indirOffsets = new Stack<long>(dn.NLevels);
-            for (int i = 0; i < dn.NLevels; i++)
+            var indirOffsets = new Stack<long>(mPhys.NLevels);
+            for (int i = 0; i < mPhys.NLevels; i++)
             {
                 indirOffsets.Push(blockId & indirMask);
                 blockId >>= indirBlockShift;
             }
 
-            blkptr_t ptr = dn.GetBlkptr(indirOffsets.Pop());
+            blkptr_t ptr = mPhys.GetBlkptr(indirOffsets.Pop());
 
             if (indirOffsets.Count != 0)
             {
-                byte[] indirBlock = new byte[1 << dn.IndirectBlockShift];
+                byte[] indirBlock = new byte[1 << mPhys.IndirectBlockShift];
                 while (indirOffsets.Count != 0 && !ptr.IsHole)
                 {
                     mZio.Read(ptr, new ArraySegment<byte>(indirBlock));
@@ -135,9 +187,9 @@ namespace ZfsSharp
             return ptr;
         }
 
-        public byte[] Read(dnode_phys_t dn)
+        public byte[] Read()
         {
-            return Read(dn, 0, (int)dn.AvailableDataSize);
+            return Read(0, (int)mPhys.AvailableDataSize);
         }
     }
 }

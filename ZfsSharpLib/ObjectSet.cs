@@ -7,18 +7,18 @@ namespace ZfsSharp
 {
     class ObjectSet
     {
-        readonly dnode_phys_t mMetaDNode;
-        readonly Dmu mDmu;
+        readonly DNode mMetaDNode;
+        readonly Zio mZio;
         readonly dmu_objset_type_t mType;
 
-        public ObjectSet(Dmu dmu, objset_phys_t os)
+        public ObjectSet(Zio zio, objset_phys_t os)
         {
-            if (dmu == null)
-                throw new ArgumentNullException("dmu");
+            if (zio == null)
+                throw new ArgumentNullException("zio");
 
-            mDmu = dmu;
+            mZio = zio;
             mType = os.Type;
-            mMetaDNode = os.MetaDnode;
+            mMetaDNode = new DNode(zio, os.MetaDnode);
         }
 
         public dmu_objset_type_t Type
@@ -26,28 +26,28 @@ namespace ZfsSharp
             get { return mType; }
         }
 
-        public unsafe dnode_phys_t ReadEntry(long index)
+        public unsafe DNode ReadEntry(long index)
         {
-            var dnStuff = mDmu.Read(mMetaDNode, index << dnode_phys_t.DNODE_SHIFT, sizeof(dnode_phys_t));
-            return Program.ToStruct<dnode_phys_t>(dnStuff);
+            var dnStuff = mMetaDNode.Read(index << dnode_phys_t.DNODE_SHIFT, sizeof(dnode_phys_t));
+            return new DNode(mZio, Program.ToStruct<dnode_phys_t>(dnStuff));
         }
 
         public byte[] ReadContent(long index)
         {
             var dn = ReadEntry(index);
-            return mDmu.Read(dn);
+            return dn.Read();
         }
 
         public byte[] ReadContent(long index, long offset, int size)
         {
             var dn = ReadEntry(index);
-            return mDmu.Read(dn, offset, size);
+            return dn.Read(offset, size);
         }
 
         public void ReadContent(long index, byte[] buffer, long offset, int size)
         {
             var dn = ReadEntry(index);
-            mDmu.Read(dn, buffer, offset, size);
+            dn.Read(buffer, offset, size);
         }
     }
 }

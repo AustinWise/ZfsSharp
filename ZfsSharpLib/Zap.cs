@@ -8,16 +8,9 @@ namespace ZfsSharp
 {
     class Zap
     {
-        readonly Dmu mDmu;
-
-        public Zap(Dmu dmu)
+        unsafe public Dictionary<string, object> Parse(DNode dn)
         {
-            mDmu = dmu;
-        }
-
-        unsafe public Dictionary<string, object> Parse(dnode_phys_t dn)
-        {
-            var zapBytes = mDmu.Read(dn);
+            var zapBytes = dn.Read();
             fixed (byte* ptr = zapBytes)
             {
                 mzap_phys_t zapHeader = Program.ToStruct<mzap_phys_t>(ptr, 0, zapBytes.Length);
@@ -36,9 +29,9 @@ namespace ZfsSharp
             return GetDirectoryEntries(objectSet.ReadEntry(objectId));
         }
 
-        unsafe public Dictionary<string, long> GetDirectoryEntries(dnode_phys_t dn, bool skipUnexpectedValues = false)
+        unsafe public Dictionary<string, long> GetDirectoryEntries(DNode dn, bool skipUnexpectedValues = false)
         {
-            var zapBytes = mDmu.Read(dn);
+            var zapBytes = dn.Read();
             fixed (byte* ptr = zapBytes)
             {
                 mzap_phys_t zapHeader = Program.ToStruct<mzap_phys_t>(ptr, 0, zapBytes.Length);
@@ -82,7 +75,7 @@ namespace ZfsSharp
             return ret;
         }
 
-        unsafe Dictionary<string, object> ParseFat(dnode_phys_t dn, byte* ptr, int length)
+        unsafe Dictionary<string, object> ParseFat(DNode dn, byte* ptr, int length)
         {
             var ret = new Dictionary<string, object>();
             var header = Program.ToStruct<zap_phys_t>(ptr, 0, length);
