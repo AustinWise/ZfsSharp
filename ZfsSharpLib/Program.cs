@@ -109,26 +109,28 @@ namespace ZfsSharp
             }
         }
 
-        public static void GetMultiBlockCopyOffsets(int blockNdx, int totalBlocks, long blockSize, long dataOffset, long dataSize, out long startNdx, out long cpyCount)
+        public static void GetMultiBlockCopyOffsets(int blockNdx, int totalBlocks, int blockSize, long dataOffset, int dataSize, out int startNdx, out int cpyCount)
         {
             startNdx = 0;
-            cpyCount = blockSize;
+            long tmpCpyCount = blockSize;
             if (blockNdx == 0)
             {
-                startNdx += (dataOffset % blockSize);
-                cpyCount -= startNdx;
+                startNdx += (int)(dataOffset % blockSize);
+                tmpCpyCount -= startNdx;
             }
             if (blockNdx == totalBlocks - 1)
             {
-                cpyCount = (dataOffset + dataSize);
-                if ((cpyCount % blockSize) == 0)
-                    cpyCount = blockSize;
-                cpyCount -= startNdx;
+                tmpCpyCount = (dataOffset + dataSize);
+                if ((tmpCpyCount % blockSize) == 0)
+                    tmpCpyCount = blockSize;
+                tmpCpyCount -= startNdx;
             }
 
-            cpyCount = cpyCount % blockSize;
-            if (cpyCount == 0)
-                cpyCount = blockSize;
+            tmpCpyCount = tmpCpyCount % blockSize;
+            if (tmpCpyCount == 0)
+                tmpCpyCount = blockSize;
+
+            cpyCount = (int)tmpCpyCount;
         }
 
         /// <summary>
@@ -139,7 +141,7 @@ namespace ZfsSharp
         /// <param name="destOffset">The offset within dest to place the data.</param>
         /// <param name="startNdx">The offset within the block to start reading from.</param>
         /// <param name="cpyCount">The number of bytes to read.</param>
-        public delegate void BlockReader<T>(T blockKey, byte[] dest, long destOffset, long startNdx, long cpyCount);
+        public delegate void BlockReader<T>(T blockKey, byte[] dest, int destOffset, int startNdx, int cpyCount);
 
         /// <summary>
         /// Given a large amount of data stored in equal sized blocks, reads a subset of that data efficiently.
@@ -152,7 +154,7 @@ namespace ZfsSharp
         /// <param name="blockSize">The size of the blocks.</param>
         /// <param name="GetBlockKey">Given a block offset returns a key for reading that block.</param>
         /// <param name="ReadBlock">Given a block key, reads the block.</param>
-        public static void MultiBlockCopy<T>(byte[] dest, long destOffset, long offset, long size, long blockSize, Func<long, T> GetBlockKey, BlockReader<T> ReadBlock)
+        public static void MultiBlockCopy<T>(byte[] dest, int destOffset, long offset, int size, int blockSize, Func<long, T> GetBlockKey, BlockReader<T> ReadBlock)
         {
             if (dest == null)
                 throw new ArgumentNullException("dest");
@@ -172,30 +174,14 @@ namespace ZfsSharp
                 blockKeys.Add(GetBlockKey(blockId));
             }
 
-            long retNdx = destOffset;
+            int retNdx = destOffset;
             for (int i = 0; i < blockKeys.Count; i++)
             {
-                long startNdx, cpyCount;
+                int startNdx, cpyCount;
                 Program.GetMultiBlockCopyOffsets(i, blockKeys.Count, blockSize, offset, size, out startNdx, out cpyCount);
 
                 ReadBlock(blockKeys[i], dest, retNdx, startNdx, cpyCount);
                 retNdx += cpyCount;
-            }
-        }
-
-        public static void LongBlockCopy(byte[] src, long srcOffset, byte[] dst, long dstOffset, long count)
-        {
-            if (src == null || dst == null)
-                throw new ArgumentNullException();
-            if (srcOffset < 0 || dstOffset < 0 || count <= 0)
-                throw new ArgumentOutOfRangeException();
-            if (srcOffset + count > src.LongLength)
-                throw new ArgumentOutOfRangeException();
-            if (dstOffset + count > dst.LongLength)
-                throw new ArgumentOutOfRangeException();
-            for (long i = 0; i < count; i++)
-            {
-                dst[i + dstOffset] = src[i + srcOffset];
             }
         }
 

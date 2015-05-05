@@ -89,11 +89,8 @@ namespace ZfsSharp
         {
             var fileId = GetFsObjectId(path);
             var fileDn = mZfsObjset.ReadEntry(fileId);
-            if (fileDn.Type != dmu_object_type_t.PLAIN_FILE_CONTENTS)
-                throw new NotSupportedException();
-            var fileSize = GetFileSize(fileDn);
-            var fileContents = mDmu.Read(fileDn, 0, fileSize);
-            return fileContents;
+            var file = new Zpl.ZfsFile(this, null, path, fileDn);
+            return file.GetContents();
         }
 
         private long GetFsObjectId(string path)
@@ -343,18 +340,20 @@ namespace ZfsSharp
 
             public byte[] GetContents()
             {
+                if (Length > int.MaxValue || mDn.AvailableDataSize > int.MaxValue)
+                    throw new Exception("Too much data to read all at once.");
                 var ret = new byte[Length];
-                mZpl.mDmu.Read(mDn, ret, 0, Math.Min(Length, mDn.AvailableDataSize));
+                mZpl.mDmu.Read(mDn, ret, 0, (int)Math.Min(Length, mDn.AvailableDataSize));
                 return ret;
             }
 
-            public byte[] GetContents(long offset, long count)
+            public byte[] GetContents(long offset, int count)
             {
                 //TODO: deal with files whose length is greater than the data allocated by the DNode
                 return mZpl.mDmu.Read(mDn, offset, count);
             }
 
-            public void GetContents(byte[] buffer, long offset, long count)
+            public void GetContents(byte[] buffer, long offset, int count)
             {
                 //TODO: deal with files whose length is greater than the data allocated by the DNode
                 mZpl.mDmu.Read(mDn, buffer, offset, count);

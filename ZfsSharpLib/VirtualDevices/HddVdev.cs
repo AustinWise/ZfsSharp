@@ -16,7 +16,7 @@ namespace ZfsSharp.VirtualDevices
             this.mHdd = hdd.HDD;
         }
 
-        protected override IEnumerable<byte[]> ReadBytesCore(long offset, long count)
+        protected override IEnumerable<byte[]> ReadBytesCore(long offset, int count)
         {
             yield return mHdd.ReadBytes(offset, count);
         }

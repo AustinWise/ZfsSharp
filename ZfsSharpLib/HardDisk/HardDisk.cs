@@ -15,14 +15,14 @@ namespace ZfsSharp
 
         public abstract void Get<T>(long offset, out T @struct) where T : struct;
 
-        public virtual byte[] ReadBytes(long offset, long count)
+        public virtual byte[] ReadBytes(long offset, int count)
         {
             var ret = new byte[count];
             ReadBytes(ret, 0, offset, count);
             return ret;
         }
 
-        public abstract void ReadBytes(byte[] array, long arrayOffset, long offset, long count);
+        public abstract void ReadBytes(byte[] array, int arrayOffset, long offset, int count);
 
         public abstract long Length
         {

@@ -51,13 +51,13 @@ namespace ZfsSharp.HardDisks
             mHdd.Get<T>(mOffset + offset, out @struct);
         }
 
-        public override void ReadBytes(byte[] array, long arrayOffset, long offset, long count)
+        public override void ReadBytes(byte[] array, int arrayOffset, long offset, int count)
         {
             CheckOffsets(offset, count);
             mHdd.ReadBytes(array, arrayOffset, mOffset + offset, count);
         }
 
-        public override byte[] ReadBytes(long offset, long count)
+        public override byte[] ReadBytes(long offset, int count)
         {
             CheckOffsets(offset, count);
             return mHdd.ReadBytes(mOffset + offset, count);

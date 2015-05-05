@@ -58,7 +58,10 @@ namespace ZfsSharp
             if (head.smo_object != dnEntry)
                 throw new Exception();
 
-            var someBytes = mDmu.Read(dn, 0, head.smo_objsize);
+            if (head.smo_objsize > int.MaxValue)
+                throw new Exception("Holy cow, this space map is greater than 2GB, what is wrong with your VDev!?!?");
+
+            var someBytes = mDmu.Read(dn, 0, (int)head.smo_objsize);
             for (int i = 0; i < someBytes.Length; i += 8)
             {
                 var ent = Program.ToStruct<spaceMapEntry>(someBytes, i);

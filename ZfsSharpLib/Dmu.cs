@@ -73,14 +73,14 @@ namespace ZfsSharp
             return bonus;
         }
 
-        public byte[] Read(dnode_phys_t dn, long offset, long size)
+        public byte[] Read(dnode_phys_t dn, long offset, int size)
         {
             var ret = new byte[size];
             Read(dn, ret, offset, size);
             return ret;
         }
 
-        public void Read(dnode_phys_t dn, byte[] buffer, long offset, long size)
+        public void Read(dnode_phys_t dn, byte[] buffer, long offset, int size)
         {
             if (offset < 0 || size < 0)
                 throw new ArgumentOutOfRangeException();
@@ -90,20 +90,20 @@ namespace ZfsSharp
             Program.MultiBlockCopy<blkptr_t>(buffer, 0, offset, size, dn.BlockSizeInBytes, blkId => GetBlock(ref dn, blkId), readBlock);
         }
 
-        private void readBlock(blkptr_t blkptr, byte[] dest, long destOffset, long startNdx, long cpyCount)
+        private void readBlock(blkptr_t blkptr, byte[] dest, int destOffset, int startNdx, int cpyCount)
         {
             if (blkptr.IsHole)
                 return;
             int logicalBlockSize = mZio.LogicalSize(ref blkptr);
             if (logicalBlockSize == cpyCount)
             {
-                mZio.Read(blkptr, new ArraySegment<byte>(dest, (int)destOffset, (int)cpyCount));
+                mZio.Read(blkptr, new ArraySegment<byte>(dest, destOffset, cpyCount));
             }
             else
             {
                 var src = new byte[logicalBlockSize];
                 mZio.Read(blkptr, new ArraySegment<byte>(src));
-                Program.LongBlockCopy(src, startNdx, dest, destOffset, cpyCount);
+                Buffer.BlockCopy(src, startNdx, dest, destOffset, cpyCount);
             }
         }
 
@@ -137,7 +137,7 @@ namespace ZfsSharp
 
         public byte[] Read(dnode_phys_t dn)
         {
-            return Read(dn, 0, dn.AvailableDataSize);
+            return Read(dn, 0, (int)dn.AvailableDataSize);
         }
     }
 }

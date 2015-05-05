@@ -29,7 +29,7 @@ namespace ZfsSharp.HardDisks
             }
         }
 
-        public override void ReadBytes(byte[] array, long arrayOffset, long offset, long count)
+        public override void ReadBytes(byte[] array, int arrayOffset, long offset, int count)
         {
             CheckOffsets(offset, count);
             using (var s = mFile.CreateViewStream(offset, count, MemoryMappedFileAccess.Read))

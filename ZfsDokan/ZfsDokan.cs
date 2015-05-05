@@ -91,10 +91,10 @@ namespace ZfsDokan
             if (offset >= item.Length || buffer.Length == 0)
                 return -1;
 
-            long bytesToRead = buffer.LongLength;
+            int bytesToRead = buffer.Length;
             if (offset + bytesToRead > item.Length)
             {
-                bytesToRead = item.Length - offset;
+                bytesToRead = (int)(item.Length - offset);
             }
 
             item.GetContents(buffer, offset, bytesToRead);

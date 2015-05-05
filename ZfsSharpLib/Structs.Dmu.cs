@@ -280,7 +280,7 @@ namespace ZfsSharp
             }
         }
 
-        public long BlockSizeInBytes
+        public int BlockSizeInBytes
         {
             get
             {

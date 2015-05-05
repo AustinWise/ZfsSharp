@@ -38,13 +38,13 @@ namespace ZfsSharp
             return mDmu.Read(dn);
         }
 
-        public byte[] ReadContent(long index, long offset, long size)
+        public byte[] ReadContent(long index, long offset, int size)
         {
             var dn = ReadEntry(index);
             return mDmu.Read(dn, offset, size);
         }
 
-        public void ReadContent(long index, byte[] buffer, long offset, long size)
+        public void ReadContent(long index, byte[] buffer, long offset, int size)
         {
             var dn = ReadEntry(index);
             mDmu.Read(dn, buffer, offset, size);

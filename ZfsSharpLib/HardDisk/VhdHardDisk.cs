@@ -196,7 +196,7 @@ namespace ZfsSharp.HardDisks
                 @struct = Program.ToStruct<T>(ReadBytes(offset, Marshal.SizeOf(typeof(T))));
             }
 
-            public override void ReadBytes(byte[] array, long arrayOffset, long offset, long size)
+            public override void ReadBytes(byte[] array, int arrayOffset, long offset, int size)
             {
                 CheckOffsets(offset, size);
                 Program.MultiBlockCopy<long>(array, 0, offset, size, mBlockSize, getBlockOffset, readBlock);
@@ -210,7 +210,7 @@ namespace ZfsSharp.HardDisks
                 return blockOffset * 512;
             }
 
-            void readBlock(long blockOffset, byte[] array, long arrayOffset, long blockStartNdx, long blockCpyCount)
+            void readBlock(long blockOffset, byte[] array, int arrayOffset, int blockStartNdx, int blockCpyCount)
             {
                 if (blockOffset == -1)
                 {
@@ -232,7 +232,7 @@ namespace ZfsSharp.HardDisks
                     if (!ba[(int)sector])
                         throw new Exception("Missing sector.");
                     return sector * 512;
-                }, (long sectorOffset, byte[] dest, long destOffset, long startNdx, long cpyCount) =>
+                }, (long sectorOffset, byte[] dest, int destOffset, int startNdx, int cpyCount) =>
                 {
                     mHdd.ReadBytes(dest, destOffset, blockOffset + sectorOffset + startNdx, cpyCount);
                 });

@@ -26,7 +26,7 @@ namespace ZfsSharp.VirtualDevices
             mMetaSlabs = new MetaSlabs(mos, dmu, (long)MetaSlabArray.Value, (int)MetaSlabShift.Value, (int)AShift.Value);
         }
 
-        public IEnumerable<byte[]> ReadBytes(long offset, long count)
+        public IEnumerable<byte[]> ReadBytes(long offset, int count)
         {
             if (mMetaSlabs != null && !mMetaSlabs.ContainsRange(offset, count))
             {
@@ -35,7 +35,7 @@ namespace ZfsSharp.VirtualDevices
             return ReadBytesCore(offset, count);
         }
 
-        protected abstract IEnumerable<byte[]> ReadBytesCore(long offset, long count);
+        protected abstract IEnumerable<byte[]> ReadBytesCore(long offset, int count);
 
         public ulong Guid
         {
