@@ -1,20 +1,29 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 
 namespace ZfsSharp
 {
     class Flecter4 : IChecksum
     {
-        public zio_cksum_t Calculate(byte[] input)
+        public unsafe zio_cksum_t Calculate(byte[] input)
         {
+            if (input.Length % 4 != 0)
+                throw new ArgumentException("Input must have a length that is a multiple of 4.");
+
             ulong a, b, c, d;
             a = b = c = d = 0;
-            int size = input.Length / 4;
-            for (int i = 0; i < size; i++)
+            fixed (byte* ptr = input)
             {
-                a += Program.ReadUInt32(input, i * 4);
-                b += a;
-                c += b;
-                d += c;
+                int size = input.Length / 4;
+                uint* intPtr = (uint*)ptr;
+                for (int i = 0; i < size; i++)
+                {
+                    a += intPtr[i];
+                    b += a;
+                    c += b;
+                    d += c;
+
+                }
             }
 
             zio_cksum_t ret = new zio_cksum_t()
