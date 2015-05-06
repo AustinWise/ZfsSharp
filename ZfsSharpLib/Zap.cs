@@ -77,31 +77,29 @@ namespace ZfsSharp
 
         unsafe Dictionary<string, object> ParseFat(DNode dn, byte* ptr, int length)
         {
-            var ret = new Dictionary<string, object>();
             var header = Program.ToStruct<zap_phys_t>(ptr, 0, length);
+            if (header.zap_num_entries > int.MaxValue)
+                throw new Exception("Too many entries in directory!");
+            var ret = new Dictionary<string, object>((int)header.zap_num_entries);
             var bs = highBit(dn.BlockSizeInBytes);
+            byte* end = ptr + length;
 
             if (header.zap_block_type != ZapBlockType.HEADER)
                 throw new Exception();
             if (header.zap_magic != ZAP_MAGIC)
                 throw new Exception();
-            if (header.zap_ptrtbl.zt_numblks != 0)
-                throw new NotImplementedException("Only embedded pointer tables currently supported.");
 
-            //read the embedded pointer table
-            byte* end = ptr + length;
-            var blkIds = new SortedSet<long>();
-            //the embedded pointer table takes up the second half of the first block
-            for (long i = (1 << (bs - 1)); i < (1 << bs); i += 8)
+            SortedSet<long> blkIds;
+            if (header.zap_ptrtbl.zt_numblks == 0)
             {
-                byte* blkIdP = ptr + i;
-                if (blkIdP + 8 > end)
-                    throw new Exception();
-                var blkId = *(long*)blkIdP;
-                if (blkId != 0)
-                {
-                    blkIds.Add(blkId);
-                }
+                //the embedded block table is the second half of the first block
+                blkIds = ReadPointerTable(ptr, length, 1 << (bs - 1), 1 << (bs - 1));
+            }
+            else
+            {
+                long startReadOffset = header.zap_ptrtbl.zt_blk << bs;
+                long numberOfBytesToRead = header.zap_ptrtbl.zt_numblks << bs;
+                blkIds = ReadPointerTable(ptr, length, startReadOffset, numberOfBytesToRead);
             }
 
             if ((ulong)blkIds.Count != header.zap_num_leafs)
@@ -166,6 +164,18 @@ namespace ZfsSharp
             if (ret.Count != header.zap_num_entries)
                 throw new Exception("Did not read the correct number of entries.");
 
+            return ret;
+        }
+
+        unsafe private static SortedSet<long> ReadPointerTable(byte* ptr, int length, long startReadOffset, long numberOfBytesToRead)
+        {
+            var ret = new SortedSet<long>();
+            for (long i = 0; i < numberOfBytesToRead; i += 8)
+            {
+                var val = Program.ToStruct<long>(ptr, startReadOffset + i, length);
+                if (val != 0)
+                    ret.Add(val);
+            }
             return ret;
         }
 
@@ -368,8 +378,8 @@ namespace ZfsSharp
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         struct zap_table_phys
         {
-            public ulong zt_blk;	/* starting block number */
-            public ulong zt_numblks;	/* number of blocks */
+            public long zt_blk;	/* starting block number */
+            public long zt_numblks;	/* number of blocks */
             public long zt_shift;	/* bits to index it */
             public ulong zt_nextblk;	/* next (larger) copy start block */
             public ulong zt_blks_copied; /* number source blocks copied */
