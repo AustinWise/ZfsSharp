@@ -88,31 +88,35 @@ namespace ZfsSharp
             if (header.zap_ptrtbl.zt_numblks != 0)
                 throw new NotImplementedException("Only embedded pointer tables currently supported.");
 
-            //read the pointer table
-            long startIndx = (1 << header.EmbeddedPtrtblShift);
+            //read the embedded pointer table
             byte* end = ptr + length;
-            var blkIds = new Dictionary<long, bool>();
-            for (long i = 0; i < (1L << (int)header.zap_ptrtbl.zt_shift); i++)
+            var blkIds = new SortedSet<long>();
+            //the embedded pointer table takes up the second half of the first block
+            for (long i = (1 << (bs - 1)); i < (1 << bs); i += 8)
             {
-                long* blkIdP = (long*)ptr + startIndx + i;
-                if (blkIdP >= end)
+                byte* blkIdP = ptr + i;
+                if (blkIdP + 8 > end)
                     throw new Exception();
-                var blkId = *blkIdP;
+                var blkId = *(long*)blkIdP;
                 if (blkId != 0)
-                    blkIds[blkId] = true;
+                {
+                    blkIds.Add(blkId);
+                }
             }
 
+            if ((ulong)blkIds.Count != header.zap_num_leafs)
+                throw new Exception("Not enough leafs.");
+
             //read the leaves
-            foreach (var blkid in blkIds.Keys)
+            foreach (var blkid in blkIds)
             {
                 var offset = blkid << bs;
                 var leaf = Program.ToStruct<zap_leaf_header>(ptr, offset, length);
                 if (leaf.lh_magic != ZAP_LEAF_MAGIC)
                     throw new Exception();
                 int numHashEntries = 1 << (bs - 5);
-                int numChunks = ((1 << bs) - 2 * numHashEntries) / ZAP_LEAF_CHUNKSIZE - 2;
 
-                var hashEntries = new Dictionary<ushort, bool>();
+                var hashEntries = new SortedSet<ushort>();
 
                 offset += Marshal.SizeOf(typeof(zap_leaf_header));
                 for (int i = 0; i < numHashEntries; i++)
@@ -122,12 +126,17 @@ namespace ZfsSharp
                         throw new Exception();
                     var loc = *hashPtr;
                     if (loc != 0xffff)
-                        hashEntries[loc] = true;
+                    {
+                        if (!hashEntries.Add(loc))
+                            throw new Exception("Duplicate leaf entry?");
+                    }
                     offset += 2;
                 }
 
-                foreach (var hashLoc in hashEntries.Keys)
+                List<ushort> itemsToProcess = new List<ushort>(hashEntries);
+                for (int i = 0; i < itemsToProcess.Count; i++)
                 {
+                    var hashLoc = itemsToProcess[i];
                     var chunk = Program.ToStruct<zap_leaf_chunk_t>(ptr, offset + sizeof(zap_leaf_chunk_t) * hashLoc, length);
                     switch (chunk.Type)
                     {
@@ -140,6 +149,8 @@ namespace ZfsSharp
                             var nameStr = Encoding.ASCII.GetString(nameBytes, 0, nameLength);
                             var valueArray = GetValueArray(ptr, length, offset, entry);
                             ret.Add(nameStr, valueArray);
+                            if (entry.le_next != 0xffff && hashEntries.Add(entry.le_next))
+                                itemsToProcess.Add(entry.le_next);
                             break;
                         case zap_chunk_type_t.ZAP_CHUNK_FREE:
                         case zap_chunk_type_t.ZAP_CHUNK_ARRAY:
@@ -147,7 +158,13 @@ namespace ZfsSharp
                             throw new NotImplementedException();
                     }
                 }
+
+                if (hashEntries.Count != leaf.lh_nentries)
+                    throw new Exception("Did not find the correct number of entries.");
             }
+
+            if (ret.Count != header.zap_num_entries)
+                throw new Exception("Did not read the correct number of entries.");
 
             return ret;
         }
@@ -379,7 +396,7 @@ namespace ZfsSharp
             ulong lh_prefix;		/* hash prefix of this leaf */
             public uint lh_magic;		/* zap_leaf_magic */
             ushort lh_nfree;		/* number free chunks */
-            ushort lh_nentries;		/* number of entries */
+            public ushort lh_nentries;		/* number of entries */
             ushort lh_prefix_len;		/* num bits used to id this */
 
             /* above is accessable to zap, below is zap_leaf private */
