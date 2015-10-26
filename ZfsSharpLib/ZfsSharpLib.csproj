@@ -73,6 +73,7 @@
     <Compile Include="DNode.cs" />
     <Compile Include="Checksum\Flecter4.cs" />
     <Compile Include="Compression\GZip.cs" />
+    <Compile Include="Extensions.cs" />
     <Compile Include="HardDisk\FileHardDisk.cs" />
     <Compile Include="HardDisk\GptHardDrive.cs" />
     <Compile Include="HardDisk\HardDisk.cs" />

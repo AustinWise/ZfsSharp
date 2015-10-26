@@ -134,7 +134,7 @@ namespace ZfsSharp
         private void ReadGangBlkPtr(blkptr_t blkptr, ArraySegment<byte> dest, ref int offset)
         {
             int size = LogicalSize(ref blkptr);
-            Read(blkptr, new ArraySegment<byte>(dest.Array, dest.Offset + offset, size));
+            Read(blkptr, dest.SubSegment(offset, size));
             offset += size;
         }
 
@@ -157,6 +157,9 @@ namespace ZfsSharp
                     ReadGangBlkPtr(gangHeader.zg_blkptr1, dest, ref offset);
                     ReadGangBlkPtr(gangHeader.zg_blkptr2, dest, ref offset);
                     ReadGangBlkPtr(gangHeader.zg_blkptr3, dest, ref offset);
+
+                    if (offset != dest.Count)
+                        throw new Exception("Did not read enough gang data!");
 
                     var chk = mChecksums[blkptr.Checksum].Calculate(dest);
                     if (!chk.Equals(blkptr.cksum))
