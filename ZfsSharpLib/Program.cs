@@ -187,7 +187,7 @@ namespace ZfsSharp
 
         public const int SPA_MINBLOCKSHIFT = 9;
         public const int SPA_MAXBLOCKSHIFT = 17;
-        const long SPA_MINBLOCKSIZE = (1L << SPA_MINBLOCKSHIFT);
+        public const int SPA_MINBLOCKSIZE = (1 << SPA_MINBLOCKSHIFT);
         const long SPA_MAXBLOCKSIZE = (1L << SPA_MAXBLOCKSHIFT);
     }
 

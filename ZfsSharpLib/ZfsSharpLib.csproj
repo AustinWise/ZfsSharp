@@ -65,10 +65,13 @@
     <Compile Include="-\System\DataStructures\FuncComparer.cs" />
     <Compile Include="-\System\IComparableExtensions.cs" />
     <Compile Include="-\Throw.cs" />
+    <Compile Include="Checksum\NoChecksum.cs" />
+    <Compile Include="Checksum\Sha256.cs" />
+    <Compile Include="Compression\NoCompression.cs" />
     <Compile Include="DatasetDirectory.cs" />
     <Compile Include="DataSetType.cs" />
     <Compile Include="DNode.cs" />
-    <Compile Include="Flecter4.cs" />
+    <Compile Include="Checksum\Flecter4.cs" />
     <Compile Include="Compression\GZip.cs" />
     <Compile Include="HardDisk\FileHardDisk.cs" />
     <Compile Include="HardDisk\GptHardDrive.cs" />

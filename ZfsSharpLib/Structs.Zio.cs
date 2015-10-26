@@ -159,7 +159,7 @@ namespace ZfsSharp
         [FieldOffset(64)]
         long pad2;
         [FieldOffset(72)]
-        public long phys_birth;
+        long phys_birth;
         [FieldOffset(80)]
         public long birth;
         [FieldOffset(88)]
@@ -180,6 +180,18 @@ namespace ZfsSharp
         public int Level
         {
             get { return (int)((prop >> 56) & 0x1f); }
+        }
+
+        public long PhysBirth
+        {
+            get
+            {
+                if (IsEmbedded)
+                    return 0;
+                if (phys_birth == 0)
+                    return birth;
+                return phys_birth;
+            }
         }
 
         public EmbeddedType EmbedType
@@ -272,6 +284,38 @@ namespace ZfsSharp
             return this.cksum.GetHashCode();
         }
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct zio_eck_t
+    {
+        const UInt64 ZEC_MAGIC = 0x0210da7ab10c7a11UL;
+
+        UInt64 zec_magic; /* for validation, endianness	*/
+        public zio_cksum_t zec_cksum;  /* 256-bit checksum		*/
+
+        public bool IsMagicValid
+        {
+            get
+            {
+                return zec_magic == ZEC_MAGIC;
+            }
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    unsafe struct zio_gbh_phys_t
+    {
+        public const int SPA_GANGBLOCKSIZE = Program.SPA_MINBLOCKSIZE;
+        const int SPA_GBH_FILLER = 11;
+
+        public blkptr_t zg_blkptr1;
+        public blkptr_t zg_blkptr2;
+        public blkptr_t zg_blkptr3;
+        fixed UInt64 zg_filler[SPA_GBH_FILLER];
+        zio_eck_t zg_tail;
+    }
+
+
     enum zio_checksum : byte
     {
         INHERIT = 0,

@@ -27,10 +27,19 @@ namespace ZfsSharp
         NvList mConfig;
         ObjectSet mMos;
 
+        static void assertStructSize<T>(int size)
+        {
+            int messuredSize = System.Runtime.InteropServices.Marshal.SizeOf(typeof(T));
+            System.Diagnostics.Debug.Assert(messuredSize == size);
+        }
+
         /// <summary></summary>
         /// <param name="directory">A directory containing virtual hard disk files.</param>
         public Zfs(string directory)
         {
+            //make sure we correctly set the size of structs
+            assertStructSize<zio_gbh_phys_t>(zio_gbh_phys_t.SPA_GANGBLOCKSIZE);
+
             mHdds = LeafVdevInfo.GetLeafVdevs(directory);
 
             try

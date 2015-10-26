@@ -16,14 +16,16 @@ namespace ZfsSharp
             for (long i = 0; i < 128; i++)
             {
                 var offset = (128 << 10) + 1024 * i;
-                uberblock_t b;
-                hdd.Get<uberblock_t>(offset, out b);
+                var bytes = hdd.ReadLabelBytes(offset, 1024);
+                uberblock_t b = Program.ToStruct<uberblock_t>(bytes);
                 if (b.Magic == uberblock_t.UbMagic)
+                {
                     blocks.Add(b);
+                }
             }
             this.Uberblock = blocks.OrderByDescending(u => u.Txg).First();
 
-            Config = new NvList(hdd.ReadBytes(16 << 10, 112 << 10));
+            Config = new NvList(hdd.ReadLabelBytes(16 << 10, 112 << 10));
 
             const int VDevLableSizeStart = 4 << 20;
             const int VDevLableSizeEnd = 512 << 10;

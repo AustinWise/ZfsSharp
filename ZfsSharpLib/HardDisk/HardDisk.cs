@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
 namespace ZfsSharp
 {
@@ -14,6 +11,24 @@ namespace ZfsSharp
         }
 
         public abstract void Get<T>(long offset, out T @struct) where T : struct;
+
+        public unsafe byte[] ReadLabelBytes(long offset, int count)
+        {
+            var ret = ReadBytes(offset, count);
+            var verifier = new zio_cksum_t()
+            {
+                word1 = (ulong)offset,
+                word2 = 0,
+                word3 = 0,
+                word4 = 0,
+            };
+            if (!Zio.IsEmbeddedChecksumValid(ret, verifier))
+            {
+                throw new Exception("Invalided label checksum.");
+            }
+
+            return ret;
+        }
 
         public virtual byte[] ReadBytes(long offset, int count)
         {
