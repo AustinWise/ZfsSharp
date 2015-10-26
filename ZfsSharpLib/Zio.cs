@@ -140,51 +140,50 @@ namespace ZfsSharp
 
         private void Read(blkptr_t blkptr, dva_t dva, ArraySegment<byte> dest)
         {
-            Vdev dev = mVdevs[dva.VDev];
-
-            if (dva.IsGang)
+            if (dva.IsGang && blkptr.Compress != zio_compress.OFF)
             {
-                if (blkptr.Compress != zio_compress.OFF)
-                    throw new Exception("A compress gang block? It seems redundent to decompress twice.");
+                throw new Exception("A compressed gang block? It seems redundent to decompress twice.");
+            }
 
-                foreach (var headerBytes in dev.ReadBytes(dva.Offset << SPA_MINBLOCKSHIFT, zio_gbh_phys_t.SPA_GANGBLOCKSIZE))
+            Vdev dev = mVdevs[dva.VDev];
+            int hddReadSize = dva.IsGang ? zio_gbh_phys_t.SPA_GANGBLOCKSIZE : ((int)blkptr.PSize + 1) * SECTOR_SIZE;
+
+            foreach (byte[] hddBytes in dev.ReadBytes(dva.Offset << SPA_MINBLOCKSHIFT, hddReadSize))
+            {
+                byte[] physicalBytes;
+                if (dva.IsGang)
                 {
-                    var gangHeader = Program.ToStruct<zio_gbh_phys_t>(headerBytes);
-                    if (!IsEmbeddedChecksumValid(headerBytes, CalculateGangChecksumVerifier(ref blkptr)))
+                    var gangHeader = Program.ToStruct<zio_gbh_phys_t>(hddBytes);
+                    if (!IsEmbeddedChecksumValid(hddBytes, CalculateGangChecksumVerifier(ref blkptr)))
                         continue;
+
+                    physicalBytes = new byte[
+                        LogicalSize(ref gangHeader.zg_blkptr1) +
+                        LogicalSize(ref gangHeader.zg_blkptr2) +
+                        LogicalSize(ref gangHeader.zg_blkptr3)];
 
                     int offset = 0;
-                    ReadGangBlkPtr(gangHeader.zg_blkptr1, dest, ref offset);
-                    ReadGangBlkPtr(gangHeader.zg_blkptr2, dest, ref offset);
-                    ReadGangBlkPtr(gangHeader.zg_blkptr3, dest, ref offset);
+                    ReadGangBlkPtr(gangHeader.zg_blkptr1, new ArraySegment<byte>(physicalBytes), ref offset);
+                    ReadGangBlkPtr(gangHeader.zg_blkptr2, new ArraySegment<byte>(physicalBytes), ref offset);
+                    ReadGangBlkPtr(gangHeader.zg_blkptr3, new ArraySegment<byte>(physicalBytes), ref offset);
 
-                    if (offset != dest.Count)
+                    if (offset != physicalBytes.Length)
                         throw new Exception("Did not read enough gang data!");
-
-                    var chk = mChecksums[blkptr.Checksum].Calculate(dest);
-                    if (!chk.Equals(blkptr.cksum))
-                    {
-                        LogChecksumError();
-                        continue;
-                    }
-                    return;
                 }
-            }
-            else
-            {
-                int physicalSize = ((int)blkptr.PSize + 1) * SECTOR_SIZE;
-                foreach (byte[] physicalBytes in dev.ReadBytes(dva.Offset << SPA_MINBLOCKSHIFT, physicalSize))
+                else
                 {
-                    var chk = mChecksums[blkptr.Checksum].Calculate(new ArraySegment<byte>(physicalBytes));
-                    if (!chk.Equals(blkptr.cksum))
-                    {
-                        LogChecksumError();
-                        continue;
-                    }
-
-                    mCompression[blkptr.Compress].Decompress(physicalBytes, dest);
-                    return;
+                    physicalBytes = hddBytes;
                 }
+
+                var chk = mChecksums[blkptr.Checksum].Calculate(new ArraySegment<byte>(physicalBytes));
+                if (!chk.Equals(blkptr.cksum))
+                {
+                    LogChecksumError();
+                    continue;
+                }
+
+                mCompression[blkptr.Compress].Decompress(physicalBytes, dest);
+                return;
             }
 
             throw new Exception("Could not find a correct copy of the requested data.");
