@@ -11,6 +11,7 @@ namespace ZfsSharp
     {
         const string ROOT_DATASET = "root_dataset";
         const string CONFIG = "config";
+        const string DDT_STATISTICS = "DDT-statistics";
         const ulong SUPPORTED_VERSION = 5000;
 
         readonly static ReadOnlyCollection<string> sSupportReadFeatures = new ReadOnlyCollection<string>(new string[]{
@@ -98,6 +99,12 @@ namespace ZfsSharp
             //The MOS's directory sometimes has things that don't like like directory entries.
             //For example, the "scan" entry has scrub status stuffed into as an array of longs.
             mObjDir = mZap.GetDirectoryEntries(objectDirectory, true);
+
+            if (mObjDir.ContainsKey(DDT_STATISTICS))
+            {
+                var ddtStats = mZap.Parse(mMos.ReadEntry(mObjDir[DDT_STATISTICS]));
+                //TODO: maybe do something interesting with the stats
+            }
 
             mConfig = new NvList(mMos.ReadContent(mObjDir[CONFIG]));
 
