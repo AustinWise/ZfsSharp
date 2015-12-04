@@ -101,8 +101,6 @@ namespace ZfsSharp
                 throw new NotSupportedException("Invalid block pointer: 0 birth txg.");
             if (blkptr.IsHole)
                 throw new Exception("Block pointer is a hole.");
-            if (blkptr.IsDedup)
-                throw new NotImplementedException("dedup not supported.");
             if (blkptr.IsLittleEndian != BitConverter.IsLittleEndian)
                 throw new NotImplementedException("Byte swapping not implemented.");
             if (LogicalSize(ref blkptr) != dest.Count)
