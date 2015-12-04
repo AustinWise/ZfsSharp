@@ -10,10 +10,13 @@ namespace ZfsSharp
 
         public unsafe static bool IsEmbeddedChecksumValid(byte[] bytes, zio_cksum_t verifier)
         {
+            int embeddedChecksumSize = sizeof(zio_eck_t);
+            if (bytes.Length <= embeddedChecksumSize)
+                throw new ArgumentOutOfRangeException(nameof(bytes), "Not enough space for an embedded checksum.");
+
             fixed (byte* bytePtr = bytes)
             {
-                zio_eck_t* pzec = (zio_eck_t*)(bytePtr + bytes.Length);
-                pzec--;
+                zio_eck_t* pzec = (zio_eck_t*)(bytePtr + bytes.Length - embeddedChecksumSize);
                 if (!pzec->IsMagicValid)
                     return false;
                 var expectedChecksum = pzec->zec_cksum;
