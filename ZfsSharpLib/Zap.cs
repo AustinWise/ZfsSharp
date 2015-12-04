@@ -44,12 +44,12 @@ namespace ZfsSharp
                     var ret = new Dictionary<string, long>();
                     foreach (var kvp in fat)
                     {
-                        var data = (long[])kvp.Value;
-                        if (data.Length != 1)
+                        var data = kvp.Value as long[];
+                        if (data == null || data.Length != 1)
                         {
                             if (skipUnexpectedValues)
                                 continue;
-                            throw new Exception("Directory entry '" + kvp.Key + "' points to more than one object id!");
+                            throw new Exception("Directory entry '" + kvp.Key + "' did not point to the expected type of array! It was: " + kvp.Value.GetType());
                         }
                         ret.Add(kvp.Key, data[0]);
                     }
