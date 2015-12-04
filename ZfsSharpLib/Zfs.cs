@@ -22,7 +22,6 @@ namespace ZfsSharp
         });
 
         List<LeafVdevInfo> mHdds;
-        Zap mZap;
         Zio mZio;
         Dictionary<string, long> mObjDir;
         NvList mConfig;
@@ -85,7 +84,6 @@ namespace ZfsSharp
             var vdevs = Vdev.CreateVdevTree(mHdds);
 
             mZio = new Zio(vdevs);
-            mZap = new Zap();
 
             mMos = new ObjectSet(mZio, mZio.Get<objset_phys_t>(ub.rootbp));
             if (mMos.Type != dmu_objset_type_t.DMU_OST_META)
@@ -98,11 +96,11 @@ namespace ZfsSharp
             var objectDirectory = mMos.ReadEntry(1);
             //The MOS's directory sometimes has things that don't like like directory entries.
             //For example, the "scan" entry has scrub status stuffed into as an array of longs.
-            mObjDir = mZap.GetDirectoryEntries(objectDirectory, true);
+            mObjDir = Zap.GetDirectoryEntries(objectDirectory, true);
 
             if (mObjDir.ContainsKey(DDT_STATISTICS))
             {
-                var ddtStats = mZap.Parse(mMos.ReadEntry(mObjDir[DDT_STATISTICS]));
+                var ddtStats = Zap.Parse(mMos.ReadEntry(mObjDir[DDT_STATISTICS]));
                 //TODO: maybe do something interesting with the stats
             }
 
@@ -114,12 +112,12 @@ namespace ZfsSharp
 
         private void CheckFeatures()
         {
-            var fr = mZap.GetDirectoryEntries(mMos, mObjDir["features_for_read"]);
-            var fw = mZap.GetDirectoryEntries(mMos, mObjDir["features_for_write"]);
-            var ff = mZap.Parse(mMos.ReadEntry(mObjDir["feature_descriptions"])).ToDictionary(kvp => kvp.Key, kvp => Encoding.ASCII.GetString((byte[])kvp.Value));
+            var fr = Zap.GetDirectoryEntries(mMos, mObjDir["features_for_read"]);
+            var fw = Zap.GetDirectoryEntries(mMos, mObjDir["features_for_write"]);
+            var ff = Zap.Parse(mMos.ReadEntry(mObjDir["feature_descriptions"])).ToDictionary(kvp => kvp.Key, kvp => Encoding.ASCII.GetString((byte[])kvp.Value));
             if (fw.ContainsKey("com.delphix:enabled_txg") && fw["com.delphix:enabled_txg"] > 0)
             {
-                var fe = mZap.GetDirectoryEntries(mMos, mObjDir["feature_enabled_txg"]);
+                var fe = Zap.GetDirectoryEntries(mMos, mObjDir["feature_enabled_txg"]);
             }
 
             foreach (var feature in fr)
@@ -157,7 +155,7 @@ namespace ZfsSharp
 
         void listDataSetName(long objectId, string nameBase, List<DatasetDirectory> ret)
         {
-            var dsd = new DatasetDirectory(mMos, objectId, nameBase, mZap, mZio);
+            var dsd = new DatasetDirectory(mMos, objectId, nameBase, mZio);
             ret.Add(dsd);
 
             foreach (var kvp in dsd.GetChildren())

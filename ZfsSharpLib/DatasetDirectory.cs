@@ -8,15 +8,13 @@ namespace ZfsSharp
     public class DatasetDirectory
     {
         private ObjectSet mMos;
-        private Zap mZap;
         private Zio mZio;
         private dsl_dir_phys_t mDslDir;
         private Dictionary<string, long> mSnapShots = new Dictionary<string, long>();
 
-        internal DatasetDirectory(ObjectSet mos, long objectid, string name, Zap zap, Zio zio)
+        internal DatasetDirectory(ObjectSet mos, long objectid, string name, Zio zio)
         {
             this.mMos = mos;
-            this.mZap = zap;
             this.mZio = zio;
             this.Name = name;
             this.Type = DataSetType.MetaData;
@@ -27,12 +25,12 @@ namespace ZfsSharp
             if (rootDslObj.BonusType != dmu_object_type_t.DSL_DIR)
                 throw new NotSupportedException("Expected DSL_DIR bonus.");
             mDslDir = rootDslObj.GetBonus<dsl_dir_phys_t>();
-            var rootDslProps = zap.Parse(mos.ReadEntry(mDslDir.props_zapobj));
+            var rootDslProps = Zap.Parse(mos, mDslDir.props_zapobj);
 
             Dictionary<string, long> clones;
             if (mDslDir.clones != 0)
             {
-                clones = zap.GetDirectoryEntries(mos, mDslDir.clones);
+                clones = Zap.GetDirectoryEntries(mos, mDslDir.clones);
             }
 
             if (mDslDir.head_dataset_obj == 0)
@@ -49,7 +47,7 @@ namespace ZfsSharp
 
             if (headDs.snapnames_zapobj != 0)
             {
-                mSnapShots = mZap.GetDirectoryEntries(mMos, headDs.snapnames_zapobj);
+                mSnapShots = Zap.GetDirectoryEntries(mMos, headDs.snapnames_zapobj);
             }
 
             if (headDs.bp.Type != dmu_object_type_t.OBJSET)
@@ -78,7 +76,7 @@ namespace ZfsSharp
 
         private Zpl GetZfs(long objectid)
         {
-            return new Zpl(mMos, objectid, mZap, mZio);
+            return new Zpl(mMos, objectid, mZio);
         }
 
         public IEnumerable<KeyValuePair<string, Zpl>> GetZfsSnapShots()
@@ -90,7 +88,7 @@ namespace ZfsSharp
         {
             if (mDslDir.child_dir_zapobj == 0)
                 return Enumerable.Empty<KeyValuePair<string, long>>();
-            return mZap.GetDirectoryEntries(mMos, mDslDir.child_dir_zapobj);
+            return Zap.GetDirectoryEntries(mMos, mDslDir.child_dir_zapobj);
         }
 
         internal static bool IsDataSet(DNode dn)

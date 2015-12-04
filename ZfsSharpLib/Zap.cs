@@ -8,9 +8,39 @@ namespace ZfsSharp
 {
     class Zap
     {
-        unsafe public Dictionary<string, object> Parse(DNode dn)
+        public static Dictionary<string, long> GetDirectoryEntries(DNode dn, bool skipUnexpectedValues = false)
         {
-            var zapBytes = dn.Read();
+            return new Zap(dn).GetDirectoryEntries(skipUnexpectedValues);
+        }
+        public static Dictionary<string, long> GetDirectoryEntries(ObjectSet os, long objId, bool skipUnexpectedValues = false)
+        {
+            return new Zap(os, objId).GetDirectoryEntries(skipUnexpectedValues);
+        }
+        public static Dictionary<string, object> Parse(DNode dn)
+        {
+            return new Zap(dn).Parse();
+        }
+        public static Dictionary<string, object> Parse(ObjectSet os, long objId)
+        {
+            return new Zap(os, objId).Parse();
+        }
+
+        readonly DNode mDnode;
+
+        public Zap(ObjectSet objectSet, long objectId)
+            : this(objectSet.ReadEntry(objectId))
+        {
+        }
+        public Zap(DNode dn)
+        {
+            if (dn == null)
+                throw new ArgumentNullException(nameof(dn));
+            this.mDnode = dn;
+        }
+
+        unsafe public Dictionary<string, object> Parse()
+        {
+            var zapBytes = mDnode.Read();
             fixed (byte* ptr = zapBytes)
             {
                 mzap_phys_t zapHeader = Program.ToStruct<mzap_phys_t>(ptr, 0, zapBytes.Length);
@@ -18,20 +48,15 @@ namespace ZfsSharp
                 if (zapHeader.BlockType == ZapBlockType.MICRO)
                     return ParseMicro(ptr, zapBytes.Length).ToDictionary(d => d.Key, d => (object)d.Value);
                 else if (zapHeader.BlockType == ZapBlockType.HEADER)
-                    return ParseFat(dn, ptr, zapBytes.Length);
+                    return ParseFat(ptr, zapBytes.Length);
                 else
                     throw new NotSupportedException();
             }
         }
 
-        public Dictionary<string, long> GetDirectoryEntries(ObjectSet objectSet, long objectId)
+        unsafe public Dictionary<string, long> GetDirectoryEntries(bool skipUnexpectedValues = false)
         {
-            return GetDirectoryEntries(objectSet.ReadEntry(objectId));
-        }
-
-        unsafe public Dictionary<string, long> GetDirectoryEntries(DNode dn, bool skipUnexpectedValues = false)
-        {
-            var zapBytes = dn.Read();
+            var zapBytes = mDnode.Read();
             fixed (byte* ptr = zapBytes)
             {
                 mzap_phys_t zapHeader = Program.ToStruct<mzap_phys_t>(ptr, 0, zapBytes.Length);
@@ -40,7 +65,7 @@ namespace ZfsSharp
                     return ParseMicro(ptr, zapBytes.Length);
                 else if (zapHeader.BlockType == ZapBlockType.HEADER)
                 {
-                    var fat = ParseFat(dn, ptr, zapBytes.Length);
+                    var fat = ParseFat(ptr, zapBytes.Length);
                     var ret = new Dictionary<string, long>();
                     foreach (var kvp in fat)
                     {
@@ -75,13 +100,13 @@ namespace ZfsSharp
             return ret;
         }
 
-        unsafe Dictionary<string, object> ParseFat(DNode dn, byte* ptr, int length)
+        unsafe Dictionary<string, object> ParseFat(byte* ptr, int length)
         {
             var header = Program.ToStruct<zap_phys_t>(ptr, 0, length);
             if (header.zap_num_entries > int.MaxValue)
                 throw new Exception("Too many entries in directory!");
             var ret = new Dictionary<string, object>((int)header.zap_num_entries);
-            var bs = highBit(dn.BlockSizeInBytes);
+            var bs = highBit(mDnode.BlockSizeInBytes);
             byte* end = ptr + length;
 
             if (header.zap_block_type != ZapBlockType.HEADER)
