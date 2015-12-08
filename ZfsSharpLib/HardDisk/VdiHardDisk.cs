@@ -96,13 +96,23 @@ namespace ZfsSharp.HardDisks
         {
             uint blockOffset = mBlockLocations[blockId];
             if (blockOffset == ~0u)
-                throw new Exception("Missing block.");
+                return -1;
             return mDataOffset + blockOffset * mBlockSize;
         }
 
         void readBlock(long blockOffset, byte[] array, int arrayOffset, int blockStartNdx, int blockCpyCount)
         {
-            mHdd.ReadBytes(array, arrayOffset, blockOffset + blockStartNdx, blockCpyCount);
+            if (blockOffset == -1)
+            {
+                for (int i = 0; i < blockCpyCount; i++)
+                {
+                    array[arrayOffset + i] = 0;
+                }
+            }
+            else
+            {
+                mHdd.ReadBytes(array, arrayOffset, blockOffset + blockStartNdx, blockCpyCount);
+            }
         }
 
         public override long Length
