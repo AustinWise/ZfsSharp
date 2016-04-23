@@ -27,4 +27,4 @@ The description of the Fat ZAP makes sense now that I’ve implemented it.  Howe
 
 The best documentation on how XDR worked was looking at GRUB’s code.  Since it only needs to implement enough to boot the system, it quickly gets to the heart of the matter.  So XDR could benefit from more documentation.
 
-[ZfsSpec]: http://hub.opensolaris.org/bin/download/Community+Group+zfs/docs/ondiskformat0822.pdf
+[ZfsSpec]: ZFSOnDiskFormat.pdf
