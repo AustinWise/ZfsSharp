@@ -12,6 +12,12 @@ namespace ZfsSharp
 
         public abstract void Get<T>(long offset, out T @struct) where T : struct;
 
+        /// <summary>
+        /// Reads and verifies data from a label.
+        /// </summary>
+        /// <param name="offset"></param>
+        /// <param name="count"></param>
+        /// <returns>Null if the checksum is not valid.</returns>
         public unsafe byte[] ReadLabelBytes(long offset, int count)
         {
             var ret = ReadBytes(offset, count);
@@ -24,7 +30,7 @@ namespace ZfsSharp
             };
             if (!Zio.IsEmbeddedChecksumValid(ret, verifier))
             {
-                throw new Exception("Invalided label checksum.");
+                return null;
             }
 
             return ret;

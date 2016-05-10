@@ -17,6 +17,8 @@ namespace ZfsSharp
             {
                 var offset = (128 << 10) + 1024 * i;
                 var bytes = hdd.ReadLabelBytes(offset, 1024);
+                if (bytes == null)
+                    continue;
                 uberblock_t b = Program.ToStruct<uberblock_t>(bytes);
                 if (b.Magic == uberblock_t.UbMagic)
                 {
