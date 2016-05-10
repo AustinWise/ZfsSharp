@@ -34,7 +34,7 @@ namespace ZfsSharp
 
         public static T ToStruct<T>(ArraySegment<byte> bytes) where T : struct
         {
-            if (Marshal.SizeOf(typeof(T)) != bytes.Count)
+            if (Unsafe.SizeOf<T>() != bytes.Count)
                 throw new ArgumentOutOfRangeException();
             return ToStruct<T>(bytes.Array, bytes.Offset);
         }
@@ -43,10 +43,9 @@ namespace ZfsSharp
         {
             if (offset < 0 || ptrLength <= 0)
                 throw new ArgumentOutOfRangeException();
-            Type t = typeof(T);
-            if (offset + Marshal.SizeOf(t) > ptrLength)
+            if (offset + Unsafe.SizeOf<T>() > ptrLength)
                 throw new ArgumentOutOfRangeException();
-            return (T)Marshal.PtrToStructure(new IntPtr(ptr + offset), t);
+            return Unsafe.Read<T>(ptr + offset);
         }
 
         public static T ToStructByteSwap<T>(byte[] bytes) where T : struct
