@@ -59,9 +59,10 @@ namespace ZfsSharp
 
         static readonly List<FileFormatInfo> sFileFormats = new List<FileFormatInfo>()
         {
-            new FileFormatInfo("vhd", fileHdd => new GptHardDrive(VhdHardDisk.Create(fileHdd))),
-            new FileFormatInfo("vdi", fileHdd => new GptHardDrive(new VdiHardDisk(fileHdd))),
-            new FileFormatInfo("zfs", fileHdd => fileHdd),
+            new FileFormatInfo("vhd",  fileHdd => new GptHardDrive(VhdHardDisk.Create(fileHdd))),
+            new FileFormatInfo("vhdx", fileHdd => new GptHardDrive(new VhdxHardDisk(fileHdd))),
+            new FileFormatInfo("vdi",  fileHdd => new GptHardDrive(new VdiHardDisk(fileHdd))),
+            new FileFormatInfo("zfs",  fileHdd => fileHdd),
         };
 
         public static List<LeafVdevInfo> GetLeafVdevs(string dir)
