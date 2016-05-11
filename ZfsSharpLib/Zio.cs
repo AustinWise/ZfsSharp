@@ -33,6 +33,7 @@ namespace ZfsSharp
         const int SPA_MINBLOCKSHIFT = 9;
 
         private Vdev[] mVdevs;
+        //TODO: change these not to use a dictionary so lookup is faster
         private Dictionary<zio_checksum, IChecksum> mChecksums = new Dictionary<zio_checksum, IChecksum>();
         private Dictionary<zio_compress, ICompression> mCompression = new Dictionary<zio_compress, ICompression>();
 

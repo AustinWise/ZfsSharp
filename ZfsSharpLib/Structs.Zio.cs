@@ -315,7 +315,6 @@ namespace ZfsSharp
         zio_eck_t zg_tail;
     }
 
-
     enum zio_checksum : byte
     {
         INHERIT = 0,
@@ -328,7 +327,13 @@ namespace ZfsSharp
         FLETCHER_4,
         SHA256,
         ZILOG2,
+        NOPARITY,
+        SHA512,
+        SKEIN,
+        EDONR,
+        FUNCTIONS
     }
+
     enum zio_compress : byte
     {
         INHERIT = 0,
@@ -347,7 +352,9 @@ namespace ZfsSharp
         GZIP_9,
         ZLE,
         LZ4,
+        FUNCTIONS
     }
+
     enum pool_state : ulong
     {
         /// <summary>
