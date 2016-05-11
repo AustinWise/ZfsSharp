@@ -45,45 +45,44 @@ namespace ZfsSharp
             HDD.Dispose();
         }
 
+        class FileFormatInfo
+        {
+            public FileFormatInfo(string fileExt, Func<FileHardDisk, HardDisk> findZfsPart)
+            {
+                this.FileExtension = fileExt;
+                this.FindZfsPartition = findZfsPart;
+            }
+
+            public string FileExtension { get; }
+            public Func<FileHardDisk, HardDisk> FindZfsPartition { get; }
+        }
+
+        static readonly List<FileFormatInfo> sFileFormats = new List<FileFormatInfo>()
+        {
+            new FileFormatInfo("vhd", fileHdd => new GptHardDrive(VhdHardDisk.Create(fileHdd))),
+            new FileFormatInfo("vdi", fileHdd => new GptHardDrive(new VdiHardDisk(fileHdd))),
+            new FileFormatInfo("zfs", fileHdd => fileHdd),
+        };
+
         public static List<LeafVdevInfo> GetLeafVdevs(string dir)
         {
-            var virtualHardDisks = new List<HardDisk>();
             var ret = new List<LeafVdevInfo>();
 
             try
             {
-                foreach (var fi in new DirectoryInfo(dir).GetFiles("*.vhd"))
+                foreach (var fileFormat in sFileFormats)
                 {
-                    var file = new FileHardDisk(fi.FullName);
-                    var vhd = VhdHardDisk.Create(file);
-                    virtualHardDisks.Add(vhd);
-                }
-                foreach (var fi in new DirectoryInfo(dir).GetFiles("*.vdi"))
-                {
-                    var file = new FileHardDisk(fi.FullName);
-                    var vhd = new VdiHardDisk(file);
-                    virtualHardDisks.Add(vhd);
-                }
-
-                foreach (var hdd in virtualHardDisks)
-                {
-                    var gpt = new GptHardDrive(hdd);
-                    var vdev = new LeafVdevInfo(gpt);
-                    ret.Add(vdev);
-                }
-                foreach (var fi in new DirectoryInfo(dir).GetFiles("*.zfs"))
-                {
-                    var file = new FileHardDisk(fi.FullName);
-                    var vdev = new LeafVdevInfo(file);
-                    ret.Add(vdev);
+                    foreach (var fi in new DirectoryInfo(dir).GetFiles("*." + fileFormat.FileExtension))
+                    {
+                        var file = new FileHardDisk(fi.FullName);
+                        var partition = fileFormat.FindZfsPartition(file);
+                        var vdev = new LeafVdevInfo(partition);
+                        ret.Add(vdev);
+                    }
                 }
             }
             catch
             {
-                foreach (var hdd in virtualHardDisks)
-                {
-                    hdd.Dispose();
-                }
                 foreach (var leaf in ret)
                 {
                     leaf.Dispose();
