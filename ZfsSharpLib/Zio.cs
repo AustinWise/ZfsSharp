@@ -29,8 +29,8 @@ namespace ZfsSharp
             }
         }
 
-        const int SECTOR_SIZE = 512;
         const int SPA_MINBLOCKSHIFT = 9;
+        const int SPA_MINBLOCKSIZE = 1 << SPA_MINBLOCKSHIFT; //512 bytes. ASIZE, LSIZE, and PSIZE are multiples of this.
 
         private Vdev[] mVdevs;
         //TODO: change these not to use a dictionary so lookup is faster
@@ -148,7 +148,7 @@ namespace ZfsSharp
             }
 
             Vdev dev = mVdevs[dva.VDev];
-            int hddReadSize = dva.IsGang ? zio_gbh_phys_t.SPA_GANGBLOCKSIZE : ((int)blkptr.PSize + 1) * SECTOR_SIZE;
+            int hddReadSize = dva.IsGang ? zio_gbh_phys_t.SPA_GANGBLOCKSIZE : ((int)blkptr.PSize + 1) * SPA_MINBLOCKSIZE;
 
             foreach (byte[] hddBytes in dev.ReadBytes(dva.Offset << SPA_MINBLOCKSHIFT, hddReadSize))
             {
@@ -202,7 +202,7 @@ namespace ZfsSharp
         {
             int ret = (int)(bp.LSize + 1);
             if (!bp.IsEmbedded)
-                ret *= SECTOR_SIZE;
+                ret *= SPA_MINBLOCKSIZE;
             return ret;
         }
     }
