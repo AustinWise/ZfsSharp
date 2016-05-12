@@ -11,10 +11,12 @@ namespace ZfsSharp.HardDisks
 {
     class VhdxHardDisk : HardDisk
     {
+        const int HEADER_SIZE = 64 * 1024;
         const UInt64 VHDX_SIG = 0x656C696678646876;
         const UInt32 HEADER_SIG = 0x64616568;
         const UInt32 REGION_TABLE_SIG = 0x69676572;
-        readonly Guid BAT_REGION_ID = Guid.Parse("2DC27766-F623-4200-9D64-115E9BFD4A08");
+        static readonly Guid BAT_REGION_ID = Guid.Parse("2DC27766-F623-4200-9D64-115E9BFD4A08");
+        static readonly Guid METADATA_REGION_ID = Guid.Parse("8B7CA206-4790-4B9A-B8FE-575F050F886E");
 
         [StructLayout(LayoutKind.Sequential)]
         struct VHDX_HEADER
@@ -58,15 +60,22 @@ namespace ZfsSharp.HardDisks
         {
             mHdd = hdd;
 
+            VHDX_REGION_TABLE_ENTRY batRegion, metadataRegion;
+            GetRegions(out batRegion, out metadataRegion);
+
+            Console.WriteLine($"{metadataRegion.Guid} {batRegion.Guid}");
+        }
+
+        private void GetRegions(out VHDX_REGION_TABLE_ENTRY outBatRegion, out VHDX_REGION_TABLE_ENTRY outMetadataRegion)
+        {
             UInt64 sig;
-            hdd.Get(0, out sig);
+            mHdd.Get(0, out sig);
             if (sig != VHDX_SIG)
                 throw new Exception("VHDX sig missing!");
 
-            const int HEADER_ALIGNER = 64 * 1024;
             var headers = new List<VHDX_HEADER>();
-            MaybeGetHeader(headers, HEADER_ALIGNER);
-            MaybeGetHeader(headers, 2 * HEADER_ALIGNER);
+            MaybeGetHeader(headers, HEADER_SIZE);
+            MaybeGetHeader(headers, 2 * HEADER_SIZE);
 
             var head = headers.OrderByDescending(h => h.SequenceNumber).First();
 
@@ -76,7 +85,7 @@ namespace ZfsSharp.HardDisks
                 throw new NotImplementedException("Processing log entries is not supported.");
 
             //I'm assuming that both region tables are the same, so I just read the first one.
-            var regionTableBytes = mHdd.ReadBytes(HEADER_ALIGNER * 3, HEADER_ALIGNER);
+            var regionTableBytes = mHdd.ReadBytes(HEADER_SIZE * 3, HEADER_SIZE);
             var regionTable = Program.ToStruct<VHDX_REGION_TABLE_HEADER>(regionTableBytes);
             if (regionTable.Signature != REGION_TABLE_SIG)
                 throw new Exception("Signature of region table is wrong!");
@@ -89,20 +98,25 @@ namespace ZfsSharp.HardDisks
             if (regionTable.EntryCount > 2047)
                 throw new Exception("Too many region table entries!");
 
-            VHDX_REGION_TABLE_ENTRY? batRegion = null;
-
+            VHDX_REGION_TABLE_ENTRY? batRegion = null, metadataRegion = null;
             for (int i = 0; i < regionTable.EntryCount; i++)
             {
                 int offset = Unsafe.SizeOf<VHDX_REGION_TABLE_HEADER>() + i * Unsafe.SizeOf<VHDX_REGION_TABLE_ENTRY>();
                 var entry = Program.ToStruct<VHDX_REGION_TABLE_ENTRY>(regionTableBytes, offset);
+
                 if (entry.Guid == BAT_REGION_ID)
                     batRegion = entry;
+                else if (entry.Guid == METADATA_REGION_ID)
+                    metadataRegion = entry;
             }
 
             if (!batRegion.HasValue)
                 throw new Exception("Could not find BAT region!");
+            if (!metadataRegion.HasValue)
+                throw new Exception("Could not find metadata region!");
 
-            Console.WriteLine();
+            outBatRegion = batRegion.Value;
+            outMetadataRegion = metadataRegion.Value;
         }
 
         void MaybeGetHeader(List<VHDX_HEADER> headerList, int offset)
