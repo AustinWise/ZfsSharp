@@ -1,6 +1,7 @@
 ﻿using Crc32C;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -11,12 +12,30 @@ namespace ZfsSharp.HardDisks
 {
     class VhdxHardDisk : HardDisk
     {
+        const int MAX_TABLE_ENTRIES = 2047; //region table and metadata table
         const int HEADER_SIZE = 64 * 1024;
+        const int METADATA_TABLE_SIZE = 64 * 1024;
         const UInt64 VHDX_SIG = 0x656C696678646876;
         const UInt32 HEADER_SIG = 0x64616568;
         const UInt32 REGION_TABLE_SIG = 0x69676572;
-        static readonly Guid BAT_REGION_ID = Guid.Parse("2DC27766-F623-4200-9D64-115E9BFD4A08");
-        static readonly Guid METADATA_REGION_ID = Guid.Parse("8B7CA206-4790-4B9A-B8FE-575F050F886E");
+        const UInt64 METADATA_TABLE_SIG = 0x617461646174656D;
+        static readonly Guid REGION_BAT = Guid.Parse("2DC27766-F623-4200-9D64-115E9BFD4A08");
+        static readonly Guid REGION_METADATA = Guid.Parse("8B7CA206-4790-4B9A-B8FE-575F050F886E");
+        static readonly Guid METADATA_FILE_PARAMS = Guid.Parse("CAA16737-FA36-4D43-B3B6-33F0AA44E76B");
+        static readonly Guid METADATA_VIRTUAL_DISK_SIZE = Guid.Parse("2FA54224-CD1B-4876-B211-5DBED83BF4B8");
+        static readonly Guid METADATA_PAGE_83_DATA = Guid.Parse("BECA12AB-B2E6-4523-93EF-C309E000C746");
+        static readonly Guid METADATA_LOGICAL_SECTOR_SIZE = Guid.Parse("8141BF1D-A96F-4709-BA47-F233A8FAAB5F");
+        static readonly Guid METADATA_PHSYICAL_SECTOR_SIZE = Guid.Parse("CDA348C7-445D-4471-9CC9-E9885251C556");
+        static readonly Guid METADATA_PARENT_LOCATOR = Guid.Parse("A8D35F2D-B30B-454D-ABF7-D3D84834AB0C");
+        static readonly HashSet<Guid> sKnownMetadataItems = new HashSet<Guid>(new Guid[]
+        {
+            METADATA_FILE_PARAMS,
+            METADATA_VIRTUAL_DISK_SIZE,
+            METADATA_PAGE_83_DATA,
+            METADATA_LOGICAL_SECTOR_SIZE,
+            METADATA_PHSYICAL_SECTOR_SIZE,
+            METADATA_PARENT_LOCATOR,
+        });
 
         [StructLayout(LayoutKind.Sequential)]
         struct VHDX_HEADER
@@ -54,7 +73,40 @@ namespace ZfsSharp.HardDisks
             public bool Required => (flags & 1) != 0;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        unsafe struct VHDX_METADATA_TABLE_HEADER
+        {
+            public UInt64 Signature;
+            UInt16 Reserved;
+            public UInt16 EntryCount;
+            fixed UInt32 Reserved2[5];
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct VHDX_METADATA_TABLE_ENTRY
+        {
+            public Guid ItemId;
+            public UInt32 Offset;
+            public UInt32 Length;
+            UInt32 flags;
+            UInt32 Reserved2;
+
+            public bool IsUser => (flags & 0x1) != 0;
+            public bool IsVirtualDisk => (flags & 0x2) != 0;
+            public bool IsRequired => (flags & 0x4) != 0;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct VHDX_FILE_PARAMETERS
+        {
+            public UInt32 BlockSize;
+            UInt32 flags;
+            public bool LeaveBlocksAllocated => (flags & 0x1) != 0;
+            public bool HasParent => (flags & 0x1) != 0;
+        }
+
         readonly HardDisk mHdd;
+        readonly long mVirtualDiskSize;
 
         public VhdxHardDisk(HardDisk hdd)
         {
@@ -63,7 +115,65 @@ namespace ZfsSharp.HardDisks
             VHDX_REGION_TABLE_ENTRY batRegion, metadataRegion;
             GetRegions(out batRegion, out metadataRegion);
 
+            VHDX_FILE_PARAMETERS fileParams;
+            uint logicalSectorSize;
+            ReadMetadata(metadataRegion, out fileParams, out mVirtualDiskSize, out logicalSectorSize);
+
             Console.WriteLine($"{metadataRegion.Guid} {batRegion.Guid}");
+        }
+
+        private void ReadMetadata(VHDX_REGION_TABLE_ENTRY metadataRegion, out VHDX_FILE_PARAMETERS outFileParams, out Int64 outVirtualDiskSize, out uint outLogicalSectorSize)
+        {
+            if (metadataRegion.Length < METADATA_TABLE_SIZE)
+                throw new Exception("Metadata region is too small to contain metadata table!");
+            var metadataBytes = mHdd.ReadBytes(checked((long)metadataRegion.FileOffset), checked((int)metadataRegion.Length));
+
+            var metadataHeader = Program.ToStruct<VHDX_METADATA_TABLE_HEADER>(metadataBytes, 0);
+            if (metadataHeader.Signature != METADATA_TABLE_SIG)
+                throw new Exception("Bad metadata header sig.");
+            if (metadataHeader.EntryCount > MAX_TABLE_ENTRIES)
+                throw new Exception("Too many metadata entries.");
+            VHDX_FILE_PARAMETERS? fileParams = null;
+            UInt64? virtualDiskSize = null;
+            UInt32? logicalSectorSize = null;
+            for (int i = 0; i < metadataHeader.EntryCount; i++)
+            {
+                int readOffset = Unsafe.SizeOf<VHDX_METADATA_TABLE_HEADER>()
+                                 + i * Unsafe.SizeOf<VHDX_METADATA_TABLE_ENTRY>();
+                var entry = Program.ToStruct<VHDX_METADATA_TABLE_ENTRY>(metadataBytes, readOffset);
+
+                if (entry.IsUser)
+                {
+                    if (entry.IsRequired)
+                        throw new Exception($"Unknown required metadata item: {entry.ItemId}");
+                    else
+                        continue;
+                }
+                else if (entry.IsRequired && !sKnownMetadataItems.Contains(entry.ItemId))
+                    throw new Exception($"Unknown required metadata item: {entry.ItemId}");
+
+                //the ArraySegment overload of ToStruct will make sure the entry size matches the data item
+                var entryBytes = new ArraySegment<byte>(metadataBytes, checked((int)entry.Offset), checked((int)entry.Length));
+                if (entry.ItemId == METADATA_FILE_PARAMS)
+                {
+                    fileParams = Program.ToStruct<VHDX_FILE_PARAMETERS>(entryBytes);
+                }
+                else if (entry.ItemId == METADATA_VIRTUAL_DISK_SIZE)
+                {
+                    virtualDiskSize = Program.ToStruct<UInt64>(entryBytes);
+                }
+                else if (entry.ItemId == METADATA_LOGICAL_SECTOR_SIZE)
+                {
+                    logicalSectorSize = Program.ToStruct<UInt32>(entryBytes);
+                }
+            }
+
+            if (!fileParams.HasValue || !virtualDiskSize.HasValue || !logicalSectorSize.HasValue)
+                throw new Exception("Missing required metadata!");
+
+            outFileParams = fileParams.Value;
+            outVirtualDiskSize = checked((long)virtualDiskSize.Value);
+            outLogicalSectorSize = logicalSectorSize.Value;
         }
 
         private void GetRegions(out VHDX_REGION_TABLE_ENTRY outBatRegion, out VHDX_REGION_TABLE_ENTRY outMetadataRegion)
@@ -104,9 +214,9 @@ namespace ZfsSharp.HardDisks
                 int offset = Unsafe.SizeOf<VHDX_REGION_TABLE_HEADER>() + i * Unsafe.SizeOf<VHDX_REGION_TABLE_ENTRY>();
                 var entry = Program.ToStruct<VHDX_REGION_TABLE_ENTRY>(regionTableBytes, offset);
 
-                if (entry.Guid == BAT_REGION_ID)
+                if (entry.Guid == REGION_BAT)
                     batRegion = entry;
-                else if (entry.Guid == METADATA_REGION_ID)
+                else if (entry.Guid == REGION_METADATA)
                     metadataRegion = entry;
             }
 
@@ -135,17 +245,11 @@ namespace ZfsSharp.HardDisks
             headerList.Add(Program.ToStruct<VHDX_HEADER>(bytes));
         }
 
-        public override long Length
-        {
-            get
-            {
-                throw new NotImplementedException();
-            }
-        }
+        public override long Length => mVirtualDiskSize;
 
         public override void Dispose()
         {
-            throw new NotImplementedException();
+            mHdd.Dispose();
         }
 
         public override void Get<T>(long offset, out T @struct)
