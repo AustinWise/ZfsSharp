@@ -105,8 +105,36 @@ namespace ZfsSharp.HardDisks
             public bool HasParent => (flags & 0x1) != 0;
         }
 
+        enum PayloadBlockState
+        {
+            NotPresent = 0,
+            Undefined = 1,
+            BlockZero = 2,
+            Unmapped = 3,
+            FullyPresent = 6,
+            PartiallyPresent = 7,
+        }
+
+        enum SectorBitmapState
+        {
+            NotPresent = 0,
+            Present = 6,
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct VHDX_BAT_ENTRY
+        {
+            const int FileOffsetMask = (1 << 44) - 1;
+            UInt64 data;
+            public PayloadBlockState PayloadState => (PayloadBlockState)(data & 0x7);
+            public SectorBitmapState SectorBitmapState => (SectorBitmapState)(data & 0x7);
+            public Int64 FileOffsetMB => (long)((data >> 20) & FileOffsetMask);
+        }
+
         readonly HardDisk mHdd;
         readonly long mVirtualDiskSize;
+        readonly int mBlockSize;
+        readonly long[] mFileOffsets;
 
         public VhdxHardDisk(HardDisk hdd)
         {
@@ -119,7 +147,58 @@ namespace ZfsSharp.HardDisks
             uint logicalSectorSize;
             ReadMetadata(metadataRegion, out fileParams, out mVirtualDiskSize, out logicalSectorSize);
 
-            Console.WriteLine($"{metadataRegion.Guid} {batRegion.Guid}");
+            if (fileParams.HasParent)
+                throw new NotImplementedException("Differencing disk are not supported.");
+
+            //check all these calculations to make sure our assumptions about data sizes are correct
+            checked
+            {
+                mBlockSize = (int)fileParams.BlockSize;
+
+                int chunkRatio = (int)((1L << 23) * logicalSectorSize / mBlockSize);
+                int dataBlockCount = (int)Math.Ceiling((decimal)mVirtualDiskSize / mBlockSize);
+                int sectorBitmapCount = (int)Math.Ceiling((decimal)dataBlockCount / chunkRatio);
+                int totalBatEntries = dataBlockCount + (int)Math.Floor((dataBlockCount - 1) / (decimal)chunkRatio);
+
+                if (batRegion.Length < Unsafe.SizeOf<VHDX_BAT_ENTRY>() * totalBatEntries)
+                    throw new Exception("Bat region is not big enough to contain all the bat entries!");
+
+                var batBytes = mHdd.ReadBytes((long)batRegion.FileOffset, (int)batRegion.Length);
+
+                mFileOffsets = new long[dataBlockCount];
+                int fileOffsetsNdx = 0;
+                for (int i = 0; i < totalBatEntries; i++)
+                {
+                    var isSectorBitmap = i != 0 && i % chunkRatio == 0;
+                    var entry = Program.ToStruct<VHDX_BAT_ENTRY>(batBytes, i * Unsafe.SizeOf<VHDX_BAT_ENTRY>());
+                    if (isSectorBitmap)
+                    {
+                        if (entry.SectorBitmapState != SectorBitmapState.NotPresent)
+                            throw new Exception("Present bat entry!");
+                    }
+                    else
+                    {
+                        long offset;
+                        switch (entry.PayloadState)
+                        {
+                            case PayloadBlockState.NotPresent:
+                            case PayloadBlockState.Undefined:
+                            case PayloadBlockState.BlockZero:
+                            case PayloadBlockState.Unmapped:
+                                offset = 0;
+                                break;
+                            case PayloadBlockState.FullyPresent:
+                                offset = entry.FileOffsetMB << 20;
+                                break;
+                            case PayloadBlockState.PartiallyPresent:
+                                throw new NotSupportedException("Partially present blocks are not supported.");
+                            default:
+                                throw new Exception($"Unknown BAT entry state: {entry.PayloadState}");
+                        }
+                        mFileOffsets[fileOffsetsNdx++] = offset;
+                    }
+                }
+            }
         }
 
         private void ReadMetadata(VHDX_REGION_TABLE_ENTRY metadataRegion, out VHDX_FILE_PARAMETERS outFileParams, out Int64 outVirtualDiskSize, out uint outLogicalSectorSize)
@@ -218,6 +297,8 @@ namespace ZfsSharp.HardDisks
                     batRegion = entry;
                 else if (entry.Guid == REGION_METADATA)
                     metadataRegion = entry;
+                else if (entry.Required)
+                    throw new Exception($"Unknown region: {entry.Guid}");
             }
 
             if (!batRegion.HasValue)
@@ -254,12 +335,34 @@ namespace ZfsSharp.HardDisks
 
         public override void Get<T>(long offset, out T @struct)
         {
-            throw new NotImplementedException();
+            @struct = Program.ToStruct<T>(ReadBytes(offset, Unsafe.SizeOf<T>()));
         }
 
         public override void ReadBytes(byte[] array, int arrayOffset, long offset, int count)
         {
-            throw new NotImplementedException();
+            Program.MultiBlockCopy<long>(array, arrayOffset, offset, count, mBlockSize, getBlockKey, readBlock);
+        }
+
+        long getBlockKey(long key)
+        {
+            return mFileOffsets[key];
+        }
+
+        unsafe void readBlock(long blockKey, byte[] dest, int destOffset, int startNdx, int cpyCount)
+        {
+            if (blockKey == 0)
+            {
+                if (cpyCount <= 0 || destOffset + cpyCount > dest.Length)
+                    throw new ArgumentOutOfRangeException(nameof(cpyCount));
+                fixed (byte* pDest = dest)
+                {
+                    Unsafe.InitBlock(pDest + destOffset, 0, (uint)cpyCount);
+                }
+            }
+            else
+            {
+                mHdd.ReadBytes(dest, destOffset, blockKey + startNdx, cpyCount);
+            }
         }
     }
 }
