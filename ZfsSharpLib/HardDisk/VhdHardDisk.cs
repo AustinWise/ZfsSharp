@@ -159,6 +159,8 @@ namespace ZfsSharp.HardDisks
 
         class DynamicVhd : HardDisk
         {
+            const int SECTOR_SIZE = 512;
+
             long mSize;
             HardDisk mHdd;
             int mBlockSize;
@@ -207,7 +209,7 @@ namespace ZfsSharp.HardDisks
                 long blockOffset = mBat[blockId];
                 if (blockOffset == -1)
                     return -1;
-                return blockOffset * 512;
+                return blockOffset * SECTOR_SIZE;
             }
 
             void readBlock(long blockOffset, byte[] array, int arrayOffset, int blockStartNdx, int blockCpyCount)
@@ -221,7 +223,6 @@ namespace ZfsSharp.HardDisks
                     return;
                 }
 
-                const int SECTOR_SIZE = 512;
                 var numberOfSectors = mBlockSize / SECTOR_SIZE;
                 var ba = new BitArray(mHdd.ReadBytes(blockOffset, numberOfSectors / 8));
 
@@ -231,7 +232,7 @@ namespace ZfsSharp.HardDisks
                 {
                     if (!ba[(int)sector])
                         throw new Exception("Missing sector.");
-                    return sector * 512;
+                    return sector * SECTOR_SIZE;
                 }, (long sectorOffset, byte[] dest, int destOffset, int startNdx, int cpyCount) =>
                 {
                     mHdd.ReadBytes(dest, destOffset, blockOffset + sectorOffset + startNdx, cpyCount);
