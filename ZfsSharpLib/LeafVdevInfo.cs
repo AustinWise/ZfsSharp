@@ -8,15 +8,35 @@ namespace ZfsSharp
 {
     class LeafVdevInfo : IDisposable
     {
+        const int VDEV_PAD_SIZE = (8 << 10);
+        /* 2 padding areas (vl_pad1 and vl_pad2) to skip */
+        const int VDEV_SKIP_SIZE = VDEV_PAD_SIZE * 2;
+        const int VDEV_PHYS_SIZE = (112 << 10);
+
+        //uberblocks can be between 1k and 8k
+        const int UBERBLOCK_SHIFT = 10;
+        const int MAX_UBERBLOCK_SHIFT = 13;
+        const int VDEV_UBERBLOCK_RING = (128 << 10);
+
         public LeafVdevInfo(HardDisk hdd)
         {
             this.HDD = hdd;
 
+            Config = new NvList(hdd.ReadLabelBytes(VDEV_SKIP_SIZE, VDEV_PHYS_SIZE));
+
+            //figure out how big the uber blocks are
+            var vdevTree = Config.Get<NvList>("vdev_tree");
+            var ubShift = (int)vdevTree.Get<ulong>("ashift");
+            ubShift = Math.Max(ubShift, UBERBLOCK_SHIFT);
+            ubShift = Math.Min(ubShift, MAX_UBERBLOCK_SHIFT);
+            var ubSize = 1 << ubShift;
+            var ubCount = VDEV_UBERBLOCK_RING >> ubShift;
+
             List<uberblock_t> blocks = new List<uberblock_t>();
-            for (long i = 0; i < 128; i++)
+            for (long i = 0; i < ubCount; i++)
             {
-                var offset = (128 << 10) + 1024 * i;
-                var bytes = hdd.ReadLabelBytes(offset, 1024);
+                var offset = VDEV_SKIP_SIZE + VDEV_PHYS_SIZE + ubSize * i;
+                var bytes = hdd.ReadLabelBytes(offset, ubSize);
                 if (bytes == null)
                     continue;
                 uberblock_t b = Program.ToStruct<uberblock_t>(bytes);
@@ -25,9 +45,7 @@ namespace ZfsSharp
                     blocks.Add(b);
                 }
             }
-            this.Uberblock = blocks.OrderByDescending(u => u.Txg).First();
-
-            Config = new NvList(hdd.ReadLabelBytes(16 << 10, 112 << 10));
+            this.Uberblock = blocks.OrderByDescending(u => u.Txg).ThenByDescending(u => u.TimeStamp).First();
 
             const int VDevLableSizeStart = 4 << 20;
             const int VDevLableSizeEnd = 512 << 10;

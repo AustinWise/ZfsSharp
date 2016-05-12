@@ -44,6 +44,7 @@ namespace ZfsSharp.VirtualDevices
         }
         public ulong ID { get; private set; }
 
+        //These are optional, as children of raidz and mirror don't have them.
         public ulong? MetaSlabArray { get; private set; }
         public ulong? MetaSlabShift { get; private set; }
         public ulong? AShift { get; private set; }
