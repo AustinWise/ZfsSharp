@@ -30,7 +30,7 @@ namespace ZfsSharp
         }
 
         const int SPA_MINBLOCKSHIFT = 9;
-        const int SPA_MINBLOCKSIZE = 1 << SPA_MINBLOCKSHIFT; //512 bytes. ASIZE, LSIZE, and PSIZE are multiples of this.
+        public const int SPA_MINBLOCKSIZE = 1 << SPA_MINBLOCKSHIFT; //512 bytes. ASIZE, LSIZE, and PSIZE are multiples of this.
 
         private Vdev[] mVdevs;
         //TODO: change these not to use a dictionary so lookup is faster
@@ -107,7 +107,7 @@ namespace ZfsSharp
                 throw new Exception("Block pointer is a hole.");
             if (blkptr.IsLittleEndian != BitConverter.IsLittleEndian)
                 throw new NotImplementedException("Byte swapping not implemented.");
-            if (LogicalSize(ref blkptr) != dest.Count)
+            if (blkptr.LogicalSizeBytes != dest.Count)
                 throw new ArgumentOutOfRangeException("dest", "Dest does not match logical size of block pointer.");
 
             if (blkptr.IsEmbedded)
@@ -135,7 +135,7 @@ namespace ZfsSharp
 
         private void ReadGangBlkPtr(blkptr_t blkptr, ArraySegment<byte> dest, ref int offset)
         {
-            int size = LogicalSize(ref blkptr);
+            int size = blkptr.LogicalSizeBytes;
             Read(blkptr, dest.SubSegment(offset, size));
             offset += size;
         }
@@ -160,9 +160,9 @@ namespace ZfsSharp
                         continue;
 
                     physicalBytes = new byte[
-                        LogicalSize(ref gangHeader.zg_blkptr1) +
-                        LogicalSize(ref gangHeader.zg_blkptr2) +
-                        LogicalSize(ref gangHeader.zg_blkptr3)];
+                        gangHeader.zg_blkptr1.LogicalSizeBytes +
+                        gangHeader.zg_blkptr2.LogicalSizeBytes +
+                        gangHeader.zg_blkptr3.LogicalSizeBytes];
 
                     int offset = 0;
                     ReadGangBlkPtr(gangHeader.zg_blkptr1, new ArraySegment<byte>(physicalBytes), ref offset);
@@ -193,17 +193,9 @@ namespace ZfsSharp
 
         public unsafe T Get<T>(blkptr_t blkptr) where T : struct
         {
-            byte[] bytes = new byte[LogicalSize(ref blkptr)];
+            byte[] bytes = new byte[blkptr.LogicalSizeBytes];
             Read(blkptr, new ArraySegment<byte>(bytes));
             return Program.ToStruct<T>(bytes);
-        }
-
-        public int LogicalSize(ref blkptr_t bp)
-        {
-            int ret = (int)(bp.LSize + 1);
-            if (!bp.IsEmbedded)
-                ret *= SPA_MINBLOCKSIZE;
-            return ret;
         }
     }
 

@@ -246,7 +246,7 @@ namespace ZfsSharp
             }
         }
 
-        public uint LSize
+        uint LSize
         {
             get
             {
@@ -254,6 +254,16 @@ namespace ZfsSharp
                     return EmbedProps.LSize;
                 else
                     return NormalProps.LSize;
+            }
+        }
+        public int LogicalSizeBytes
+        {
+            get
+            {
+                int ret = (int)(LSize + 1);
+                if (!IsEmbedded)
+                    ret *= Zio.SPA_MINBLOCKSIZE;
+                return ret;
             }
         }
 

@@ -103,7 +103,7 @@ namespace ZfsSharp
                 throw new NotImplementedException("Only spill pointers with fill = 1 supported.");
             }
 
-            var ret = new byte[mZio.LogicalSize(ref spill)];
+            var ret = new byte[spill.LogicalSizeBytes];
             mZio.Read(spill, new ArraySegment<byte>(ret));
             return ret;
         }
@@ -146,7 +146,7 @@ namespace ZfsSharp
         {
             if (blkptr.IsHole)
                 return;
-            int logicalBlockSize = mZio.LogicalSize(ref blkptr);
+            int logicalBlockSize = blkptr.LogicalSizeBytes;
             if (logicalBlockSize == cpyCount)
             {
                 mZio.Read(blkptr, new ArraySegment<byte>(dest, destOffset, cpyCount));
