@@ -5,3 +5,5 @@ obj
 *.cache
 TestResults
 packages
+*.psess
+*.vsp
