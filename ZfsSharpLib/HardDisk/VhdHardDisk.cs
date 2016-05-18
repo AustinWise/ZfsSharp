@@ -119,9 +119,9 @@ namespace ZfsSharp.HardDisks
         {
             VhdHeader head = GetHeader(hdd);
             if (head.CookieStr != "conectix")
-                throw new Exception();
+                throw new Exception("missing magic string");
             if (head.FileFormatVersion != 0x00010000)
-                throw new Exception();
+                throw new Exception("upsupported version");
 
             if (head.DiskType == DiskType.Fixed)
             {
@@ -158,32 +158,43 @@ namespace ZfsSharp.HardDisks
             long mSize;
             HardDisk mHdd;
             int mBlockSize;
-            int[] mBat;
+            long[] mBat;
+
             public DynamicVhd(HardDisk hdd)
             {
                 VhdHeader head = GetHeader(hdd);
                 int dySize = Program.SizeOf<DynamicHeader>();
                 DynamicHeader dyhead = Program.ToStructByteSwap<DynamicHeader>(hdd.ReadBytes(head.DataOffset, dySize));
                 if (dyhead.CookieStr != "cxsparse")
-                    throw new Exception();
+                    throw new Exception("missing magic string");
                 if (dyhead.HeaderVersion != 0x00010000)
-                    throw new NotSupportedException();
+                    throw new NotSupportedException("wrong version");
+                if (dyhead.ParentUniqueID != Guid.Empty)
+                    throw new NotSupportedException("Differencing disks not supported.");
 
                 mHdd = hdd;
                 mSize = head.CurrentSize;
                 mBlockSize = dyhead.BlockSize;
+                int sectorBitmapSize = (mBlockSize / SECTOR_SIZE) / 8;
 
                 int numberOfBlocks = (int)(mSize / mBlockSize);
                 if (numberOfBlocks > dyhead.MaxTableEntries)
                     throw new Exception();
-                mBat = new int[numberOfBlocks];
+                mBat = new long[numberOfBlocks];
 
                 var bat = mHdd.ReadBytes(dyhead.TableOffset, numberOfBlocks * 4);
 
                 for (int i = 0; i < numberOfBlocks; i++)
                 {
                     Program.ByteSwap(typeof(int), bat, i * 4);
-                    mBat[i] = Program.ToStruct<int>(bat, i * 4);
+                    long batEntry = Program.ToStruct<int>(bat, i * 4);
+                    if (batEntry != -1)
+                    {
+                        batEntry *= SECTOR_SIZE;
+                        //skip the sector bitmap, since we don't support differencing disks
+                        batEntry += sectorBitmapSize;
+                    }
+                    mBat[i] = batEntry;
                 }
             }
 
@@ -195,10 +206,7 @@ namespace ZfsSharp.HardDisks
 
             private long getBlockOffset(long blockId)
             {
-                long blockOffset = mBat[blockId];
-                if (blockOffset == -1)
-                    return -1;
-                return blockOffset * SECTOR_SIZE;
+                return mBat[blockId];
             }
 
             void readBlock(ArraySegment<byte> array, long blockOffset, int blockStartNdx)
@@ -206,23 +214,11 @@ namespace ZfsSharp.HardDisks
                 if (blockOffset == -1)
                 {
                     array.ZeroMemory();
-                    return;
                 }
-
-                var numberOfSectors = mBlockSize / SECTOR_SIZE;
-                var ba = new BitArray(mHdd.ReadBytes(blockOffset, numberOfSectors / 8));
-
-                blockOffset += numberOfSectors / 8;
-
-                Program.MultiBlockCopy<long>(array, blockStartNdx, SECTOR_SIZE, sector =>
+                else
                 {
-                    if (!ba[(int)sector])
-                        throw new Exception("Missing sector.");
-                    return sector * SECTOR_SIZE;
-                }, (ArraySegment<byte> dest, long sectorOffset, int startNdx) =>
-                {
-                    mHdd.ReadBytes(dest, blockOffset + sectorOffset + startNdx);
-                });
+                    mHdd.ReadBytes(array, blockOffset + blockStartNdx);
+                }
             }
 
             public override long Length
