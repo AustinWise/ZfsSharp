@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -127,30 +128,6 @@ namespace ZfsSharp
             }
         }
 
-        public static void GetMultiBlockCopyOffsets(int blockNdx, int totalBlocks, int blockSize, long dataOffset, int dataSize, out int startNdx, out int cpyCount)
-        {
-            startNdx = 0;
-            long tmpCpyCount = blockSize;
-            if (blockNdx == 0)
-            {
-                startNdx += (int)(dataOffset % blockSize);
-                tmpCpyCount -= startNdx;
-            }
-            if (blockNdx == totalBlocks - 1)
-            {
-                tmpCpyCount = (dataOffset + dataSize);
-                if ((tmpCpyCount % blockSize) == 0)
-                    tmpCpyCount = blockSize;
-                tmpCpyCount -= startNdx;
-            }
-
-            tmpCpyCount = tmpCpyCount % blockSize;
-            if (tmpCpyCount == 0)
-                tmpCpyCount = blockSize;
-
-            cpyCount = (int)tmpCpyCount;
-        }
-
         /// <summary>
         /// </summary>
         /// <typeparam name="T"></typeparam>
@@ -158,6 +135,16 @@ namespace ZfsSharp
         /// <param name="blockKey">An identifier for the block.</param>
         /// <param name="startNdx">The offset within the block to start reading from.</param>
         public delegate void BlockReader<T>(ArraySegment<byte> dest, T blockKey, int startNdx);
+
+        static long roundup(long x, long y)
+        {
+            return ((x + (y - 1)) / y) * y;
+        }
+
+        static long rounddown(long x, long y)
+        {
+            return (x / y) * y;
+        }
 
         /// <summary>
         /// Given a large amount of data stored in equal sized blocks, reads a subset of that data efficiently.
@@ -175,21 +162,22 @@ namespace ZfsSharp
             if (blockSize <= 0)
                 throw new ArgumentOutOfRangeException("blockSize");
 
-            List<T> blockKeys = new List<T>();
-            for (long i = (offset / blockSize) * blockSize; i < (offset + dest.Count); i += blockSize)
-            {
-                long blockId = i / blockSize;
-                blockKeys.Add(GetBlockKey(blockId));
-            }
+            long firstBlock = offset / blockSize;
+            int numBlocks = (int)((roundup(offset + dest.Count, blockSize) - rounddown(offset, blockSize)) / blockSize);
 
-            int retNdx = 0;
-            for (int i = 0; i < blockKeys.Count; i++)
+            int remaingBytes = dest.Count;
+            int destOffset = 0;
+            for (int i = 0; i < numBlocks; i++)
             {
-                int startNdx, cpyCount;
-                Program.GetMultiBlockCopyOffsets(i, blockKeys.Count, blockSize, offset, dest.Count, out startNdx, out cpyCount);
+                int blockOffset = (int)(offset % blockSize);
+                int size = Math.Min(remaingBytes, blockSize - blockOffset);
 
-                ReadBlock(dest.SubSegment(retNdx, cpyCount), blockKeys[i], startNdx);
-                retNdx += cpyCount;
+                var key = GetBlockKey(firstBlock + i);
+                ReadBlock(dest.SubSegment(destOffset, size), key, blockOffset);
+
+                destOffset += size;
+                offset += size;
+                remaingBytes -= size;
             }
         }
 
