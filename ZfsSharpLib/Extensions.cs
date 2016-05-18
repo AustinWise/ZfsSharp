@@ -23,5 +23,12 @@ namespace ZfsSharp
 
             return new ArraySegment<T>(parent.Array, parent.Offset + offset, count);
         }
+
+        public static T Get<T>(this ArraySegment<T> seg, int offset)
+        {
+            if (seg.Offset + offset >= seg.Count)
+                throw new ArgumentOutOfRangeException(nameof(offset));
+            return seg.Array[seg.Offset + offset];
+        }
     }
 }

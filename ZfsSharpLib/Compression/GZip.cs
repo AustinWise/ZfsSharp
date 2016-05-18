@@ -6,9 +6,9 @@ namespace ZfsSharp
 {
     class GZip : ICompression
     {
-        public void Decompress(byte[] input, ArraySegment<byte> output)
+        public void Decompress(ArraySegment<byte> input, ArraySegment<byte> output)
         {
-            using (var gz = new InflaterInputStream(new MemoryStream(input)))
+            using (var gz = new InflaterInputStream(new MemoryStream(input.Array, input.Offset, input.Count)))
             {
                 int read = gz.Read(output.Array, output.Offset, output.Count);
                 if (read != output.Count)

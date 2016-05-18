@@ -96,7 +96,7 @@ namespace ZfsSharp
                 physicalBytes[bytesRead++] = blkptr.EmbeddedData3[i];
             }
 
-            mCompression[blkptr.Compress].Decompress(physicalBytes, dest);
+            mCompression[blkptr.Compress].Decompress(new ArraySegment<byte>(physicalBytes), dest);
         }
 
         public void Read(blkptr_t blkptr, ArraySegment<byte> dest)
@@ -184,7 +184,7 @@ namespace ZfsSharp
                     continue;
                 }
 
-                mCompression[blkptr.Compress].Decompress(physicalBytes, dest);
+                mCompression[blkptr.Compress].Decompress(new ArraySegment<byte>(physicalBytes), dest);
                 return;
             }
 
@@ -206,6 +206,6 @@ namespace ZfsSharp
 
     interface ICompression
     {
-        void Decompress(byte[] input, ArraySegment<byte> output);
+        void Decompress(ArraySegment<byte> input, ArraySegment<byte> output);
     }
 }
