@@ -25,10 +25,10 @@ namespace ZfsSharp
         /// </summary>
         /// <param name="offset"></param>
         /// <param name="count"></param>
-        /// <returns>Null if the checksum is not valid.</returns>
-        public unsafe byte[] ReadLabelBytes(long offset, int count)
+        /// <returns>true if the checksum is valid, false otherwise</returns>
+        public bool ReadLabelBytes(ArraySegment<byte> dest, long offset)
         {
-            var ret = ReadBytes(offset, count);
+            ReadBytes(dest, offset);
             var verifier = new zio_cksum_t()
             {
                 word1 = (ulong)offset,
@@ -36,12 +36,7 @@ namespace ZfsSharp
                 word3 = 0,
                 word4 = 0,
             };
-            if (!Zio.IsEmbeddedChecksumValid(new ArraySegment<byte>(ret), verifier))
-            {
-                return null;
-            }
-
-            return ret;
+            return Zio.IsEmbeddedChecksumValid(dest, verifier);
         }
 
         public byte[] ReadBytes(long offset, int count)

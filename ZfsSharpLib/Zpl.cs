@@ -121,35 +121,53 @@ namespace ZfsSharp
 
         T GetAttr<T>(DNode dn, zpl_attr_t attr) where T : struct
         {
-            var bytes = GetAttrBytes(dn, attr);
-
-            return Program.ToStruct<T>(bytes);
+            var bytes = RentAttrBytes(dn, attr);
+            try
+            {
+                return Program.ToStruct<T>(bytes);
+            }
+            finally
+            {
+                Program.ReturnBytes(bytes);
+            }
         }
 
-        ArraySegment<byte> GetAttrBytes(DNode dn, zpl_attr_t attr)
+        /// <summary>
+        /// Gets the bytes for a attribute.
+        /// </summary>
+        /// <param name="dn"></param>
+        /// <param name="attr"></param>
+        /// <returns>The value should be return to the buffer pool using <see cref="Program.ReturnBytes"/></returns>
+        ArraySegment<byte> RentAttrBytes(DNode dn, zpl_attr_t attr)
         {
-            var bytes = dn.ReadBonus();
             ArraySegment<byte> ret;
-            if (GetAttrFromBytes(bytes, attr, out ret))
-            {
-                return ret;
-            }
 
-            if (dn.SpillType == dmu_object_type_t.SA)
             {
-                bytes = dn.ReadSpill();
+                var bytes = dn.RentBonus();
                 if (GetAttrFromBytes(bytes, attr, out ret))
                 {
                     return ret;
                 }
+                Program.ReturnBytes(bytes);
+            }
+
+            if (dn.SpillType == dmu_object_type_t.SA)
+            {
+                var bytes = Program.RentBytes(dn.SpillSize);
+                dn.ReadSpill(bytes);
+                if (GetAttrFromBytes(bytes, attr, out ret))
+                {
+                    return ret;
+                }
+                Program.ReturnBytes(bytes);
             }
 
             throw new KeyNotFoundException();
         }
 
-        private bool GetAttrFromBytes(byte[] bytes, zpl_attr_t attr, out ArraySegment<byte> ret)
+        private bool GetAttrFromBytes(ArraySegment<byte> bytes, zpl_attr_t attr, out ArraySegment<byte> ret)
         {
-            var saHeader = Program.ToStruct<sa_hdr_phys_t>(bytes);
+            var saHeader = Program.ToStruct<sa_hdr_phys_t>(bytes.Array, bytes.Offset);
             saHeader.VerifyMagic();
 
             var numberOfLengths = 1;
@@ -167,14 +185,14 @@ namespace ZfsSharp
             var varSizes = new short[layout.NumberOfVariableSizedFields];
             for (int i = 0; i < varSizes.Length; i++)
             {
-                varSizes[i] = Program.ToStruct<short>(bytes, SaHdrLengthOffset + i * 2);
+                varSizes[i] = Program.ToStruct<short>(bytes.Array, bytes.Offset + SaHdrLengthOffset + i * 2);
             }
 
             var fieldOffset = layout.GetOffset(attr, varSizes);
             fieldOffset += saHeader.hdrsz;
 
             var fieldSize = layout.GetFieldSize(attr, varSizes);
-            ret = new ArraySegment<byte>(bytes, fieldOffset, fieldSize);
+            ret = bytes.SubSegment(fieldOffset, fieldSize);
             return true;
         }
 
@@ -265,10 +283,17 @@ namespace ZfsSharp
 
             DateTime GetDateTime(zpl_attr_t attr)
             {
-                var bytes = mZpl.GetAttrBytes(mDn, attr);
-                ulong seconds = Program.ToStruct<ulong>(new ArraySegment<byte>(bytes.Array, bytes.Offset, 8));
-                ulong nanosecs = Program.ToStruct<ulong>(new ArraySegment<byte>(bytes.Array, bytes.Offset + 8, 8));
-                return sEpoc.AddSeconds(seconds).AddTicks((long)(nanosecs / 100));
+                var bytes = mZpl.RentAttrBytes(mDn, attr);
+                try
+                {
+                    ulong seconds = Program.ToStruct<ulong>(bytes.SubSegment(0, sizeof(ulong)));
+                    ulong nanosecs = Program.ToStruct<ulong>(bytes.SubSegment(sizeof(ulong), sizeof(ulong)));
+                    return sEpoc.AddSeconds(seconds).AddTicks((long)(nanosecs / 100));
+                }
+                finally
+                {
+                    Program.ReturnBytes(bytes);
+                }
             }
 
             public string Name { get; private set; }
@@ -359,8 +384,15 @@ namespace ZfsSharp
             internal ZfsSymLink(Zpl zpl, ZfsDirectory parent, string name, DNode dn)
                 : base(zpl, parent, name, dn)
             {
-                var bytes = zpl.GetAttrBytes(dn, zpl_attr_t.ZPL_SYMLINK);
-                PointsTo = Encoding.ASCII.GetString(bytes.Array, bytes.Offset, bytes.Count);
+                var bytes = zpl.RentAttrBytes(dn, zpl_attr_t.ZPL_SYMLINK);
+                try
+                {
+                    PointsTo = Encoding.ASCII.GetString(bytes.Array, bytes.Offset, bytes.Count);
+                }
+                finally
+                {
+                    Program.ReturnBytes(bytes);
+                }
             }
 
             public string PointsTo { get; private set; }

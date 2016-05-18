@@ -29,9 +29,9 @@ namespace ZfsSharp
             return new ArraySegment<byte>(sBytePool.Rent(size), 0, size);
         }
 
-        public static void ReturnBytes(ArraySegment<byte> buffer, bool clearArray = false)
+        public static void ReturnBytes(ArraySegment<byte> buffer)
         {
-            sBytePool.Return(buffer.Array, clearArray);
+            sBytePool.Return(buffer.Array);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

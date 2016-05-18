@@ -58,6 +58,18 @@ namespace ZfsSharp
             get { return (mPhys.Flags & DnodeFlags.SpillBlkptr) == 0 ? dmu_object_type_t.NONE : mPhys.Spill.Type; }
         }
 
+        public int SpillSize
+        {
+            get
+            {
+                if ((mPhys.Flags & DnodeFlags.SpillBlkptr) == 0)
+                {
+                    throw new NotSupportedException("DNode does not have a spill block pointer.");
+                }
+                return mPhys.Spill.LogicalSizeBytes;
+            }
+        }
+
         unsafe void CalculateBonusSize(out int bonusOffset, out int maxBonusSize)
         {
             if (mPhys.BonusType == dmu_object_type_t.NONE)
@@ -90,7 +102,7 @@ namespace ZfsSharp
             }
         }
 
-        public byte[] ReadSpill()
+        public void ReadSpill(ArraySegment<byte> dest)
         {
             if ((mPhys.Flags & DnodeFlags.SpillBlkptr) == 0)
             {
@@ -103,12 +115,14 @@ namespace ZfsSharp
                 throw new NotImplementedException("Only spill pointers with fill = 1 supported.");
             }
 
-            var ret = new byte[spill.LogicalSizeBytes];
-            mZio.Read(spill, new ArraySegment<byte>(ret));
-            return ret;
+            mZio.Read(spill, dest);
         }
 
-        unsafe public byte[] ReadBonus()
+        /// <summary>
+        ///
+        /// </summary>
+        /// <returns>A buffer that should be return to <see cref="Program.ReturnBytes"/></returns>
+        unsafe public ArraySegment<byte> RentBonus()
         {
             int bonusOffset;
             int maxBonusSize;
@@ -117,10 +131,10 @@ namespace ZfsSharp
             if (mPhys.BonusLen > maxBonusSize)
                 throw new Exception("Specified bonus size is larger than the dnode can hold.");
 
-            byte[] bonus = new byte[mPhys.BonusLen];
+            var bonus = Program.RentBytes(mPhys.BonusLen);
             fixed (byte* pBonus = mPhys.Bonus)
             {
-                Marshal.Copy(new IntPtr(pBonus + bonusOffset), bonus, 0, mPhys.BonusLen);
+                Marshal.Copy(new IntPtr(pBonus + bonusOffset), bonus.Array, bonus.Offset, bonus.Count);
             }
             return bonus;
         }

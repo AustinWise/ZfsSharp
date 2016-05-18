@@ -221,9 +221,16 @@ namespace ZfsSharp
 
         public unsafe T Get<T>(blkptr_t blkptr) where T : struct
         {
-            byte[] bytes = new byte[blkptr.LogicalSizeBytes];
-            Read(blkptr, new ArraySegment<byte>(bytes));
-            return Program.ToStruct<T>(bytes);
+            var bytes = Program.RentBytes(blkptr.LogicalSizeBytes);
+            try
+            {
+                Read(blkptr, bytes);
+                return Program.ToStruct<T>(bytes);
+            }
+            finally
+            {
+                Program.ReturnBytes(bytes);
+            }
         }
     }
 

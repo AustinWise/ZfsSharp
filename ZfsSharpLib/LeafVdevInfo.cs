@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using ZfsSharp.HardDisks;
@@ -22,7 +23,19 @@ namespace ZfsSharp
         {
             this.HDD = hdd;
 
-            Config = new NvList(hdd.ReadLabelBytes(VDEV_SKIP_SIZE, VDEV_PHYS_SIZE));
+            var rentedBytes = Program.RentBytes(VDEV_PHYS_SIZE);
+
+            try
+            {
+                if (!hdd.ReadLabelBytes(rentedBytes, VDEV_SKIP_SIZE))
+                    throw new Exception("Invalid checksum on lable config data!");
+                Config = new NvList(rentedBytes);
+            }
+            finally
+            {
+                Program.ReturnBytes(rentedBytes);
+                rentedBytes = default(ArraySegment<byte>);
+            }
 
             //figure out how big the uber blocks are
             var vdevTree = Config.Get<NvList>("vdev_tree");
@@ -33,17 +46,25 @@ namespace ZfsSharp
             var ubCount = VDEV_UBERBLOCK_RING >> ubShift;
 
             List<uberblock_t> blocks = new List<uberblock_t>();
-            for (long i = 0; i < ubCount; i++)
+            var ubBytes = Program.RentBytes(ubSize);
+            try
             {
-                var offset = VDEV_SKIP_SIZE + VDEV_PHYS_SIZE + ubSize * i;
-                var bytes = hdd.ReadLabelBytes(offset, ubSize);
-                if (bytes == null)
-                    continue;
-                uberblock_t b = Program.ToStruct<uberblock_t>(bytes);
-                if (b.Magic == uberblock_t.UbMagic)
+                for (long i = 0; i < ubCount; i++)
                 {
-                    blocks.Add(b);
+                    var offset = VDEV_SKIP_SIZE + VDEV_PHYS_SIZE + ubSize * i;
+                    if (!hdd.ReadLabelBytes(ubBytes, offset))
+                        continue;
+                    uberblock_t b = Program.ToStruct<uberblock_t>(ubBytes.Array, ubBytes.Offset);
+                    if (b.Magic == uberblock_t.UbMagic)
+                    {
+                        blocks.Add(b);
+                    }
                 }
+            }
+            finally
+            {
+                Program.ReturnBytes(ubBytes);
+                ubBytes = default(ArraySegment<byte>);
             }
             this.Uberblock = blocks.OrderByDescending(u => u.Txg).ThenByDescending(u => u.TimeStamp).First();
 
