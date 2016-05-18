@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using ZfsSharp.VirtualDevices;
 
@@ -7,6 +8,7 @@ namespace ZfsSharp
     class Zio
     {
         static readonly Sha256 sEmbeddedChecksum = new Sha256();
+        static readonly ArrayPool<byte> sPool = ArrayPool<byte>.Shared;
 
         public unsafe static bool IsEmbeddedChecksumValid(byte[] bytes, zio_cksum_t verifier)
         {
@@ -79,7 +81,7 @@ namespace ZfsSharp
             int physicalSize = blkptr.PSize + 1;
             if (physicalSize > blkptr_t.EM_DATA_SIZE)
                 throw new Exception("PSize is too big!");
-            byte[] physicalBytes = new byte[physicalSize];
+            byte[] physicalBytes = sPool.Rent(physicalSize);
 
             int bytesRead = 0;
 
@@ -96,7 +98,8 @@ namespace ZfsSharp
                 physicalBytes[bytesRead++] = blkptr.EmbeddedData3[i];
             }
 
-            mCompression[blkptr.Compress].Decompress(new ArraySegment<byte>(physicalBytes), dest);
+            mCompression[blkptr.Compress].Decompress(new ArraySegment<byte>(physicalBytes, 0, physicalSize), dest);
+            sPool.Return(physicalBytes);
         }
 
         public void Read(blkptr_t blkptr, ArraySegment<byte> dest)
