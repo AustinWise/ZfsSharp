@@ -36,7 +36,7 @@ namespace ZfsSharp
                 word3 = 0,
                 word4 = 0,
             };
-            if (!Zio.IsEmbeddedChecksumValid(ret, verifier))
+            if (!Zio.IsEmbeddedChecksumValid(new ArraySegment<byte>(ret), verifier))
             {
                 return null;
             }

@@ -117,9 +117,9 @@ namespace ZfsSharp
             get { return (ushort)((prop >> 25) & 0x7f); }
         }
 
-        public uint LSize
+        public int LSize
         {
-            get { return (uint)(prop & 0x1ffffff); }
+            get { return (int)(prop & 0x1ffffff); }
         }
     }
 
@@ -239,35 +239,25 @@ namespace ZfsSharp
             get { return ((prop >> 62) & 1) != 0; }
         }
 
-        public ushort PSize
-        {
-            get
-            {
-                if (IsEmbedded)
-                    return EmbedProps.PSize;
-                else
-                    return NormalProps.PSize;
-            }
-        }
-
-        uint LSize
-        {
-            get
-            {
-                if (IsEmbedded)
-                    return EmbedProps.LSize;
-                else
-                    return NormalProps.LSize;
-            }
-        }
         public int LogicalSizeBytes
         {
             get
             {
-                int ret = (int)(LSize + 1);
-                if (!IsEmbedded)
-                    ret *= Zio.SPA_MINBLOCKSIZE;
-                return ret;
+                if (IsEmbedded)
+                    return EmbedProps.LSize + 1;
+                else
+                    return (NormalProps.LSize + 1) * Zio.SPA_MINBLOCKSIZE;
+            }
+        }
+
+        public int PhysicalSizeBytes
+        {
+            get
+            {
+                if (IsEmbedded)
+                    return EmbedProps.PSize + 1;
+                else
+                    return (NormalProps.PSize + 1) * Zio.SPA_MINBLOCKSIZE;
             }
         }
 

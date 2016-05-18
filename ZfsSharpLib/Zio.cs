@@ -11,24 +11,22 @@ namespace ZfsSharp
     {
         static readonly Sha256 sEmbeddedChecksum = new Sha256();
 
-        public unsafe static bool IsEmbeddedChecksumValid(byte[] bytes, zio_cksum_t verifier)
+        public unsafe static bool IsEmbeddedChecksumValid(ArraySegment<byte> bytes, zio_cksum_t verifier)
         {
             int embeddedChecksumSize = sizeof(zio_eck_t);
-            if (bytes.Length <= embeddedChecksumSize)
+            if (bytes.Count <= embeddedChecksumSize)
                 throw new ArgumentOutOfRangeException(nameof(bytes), "Not enough space for an embedded checksum.");
 
-            fixed (byte* bytePtr = bytes)
+            fixed (byte* bytePtr = bytes.Array)
             {
-                zio_eck_t* pzec = (zio_eck_t*)(bytePtr + bytes.Length - embeddedChecksumSize);
+                zio_eck_t* pzec = (zio_eck_t*)(bytePtr + bytes.Offset + bytes.Count - embeddedChecksumSize);
                 if (!pzec->IsMagicValid)
                     return false;
                 var expectedChecksum = pzec->zec_cksum;
                 pzec->zec_cksum = verifier;
-                var actualChecksum = sEmbeddedChecksum.Calculate(new ArraySegment<byte>(bytes));
-                if (!actualChecksum.Equals(expectedChecksum))
-                    return false;
+                var actualChecksum = sEmbeddedChecksum.Calculate(bytes);
                 pzec->zec_cksum = expectedChecksum;
-                return true;
+                return actualChecksum.Equals(expectedChecksum);
             }
         }
 
@@ -78,7 +76,7 @@ namespace ZfsSharp
             if (blkptr.EmbedType != EmbeddedType.Data)
                 throw new Exception("Unsupported embedded type: " + blkptr.EmbedType);
 
-            int physicalSize = blkptr.PSize + 1;
+            int physicalSize = blkptr.PhysicalSizeBytes;
             if (physicalSize > blkptr_t.EM_DATA_SIZE)
                 throw new Exception("PSize is too big!");
             var physicalBytes = Program.RentBytes(physicalSize);
@@ -151,6 +149,51 @@ namespace ZfsSharp
             offset += size;
         }
 
+        /// <summary>
+        /// Just reads the bytes off the disk, reading gang blocks as needed.
+        /// </summary>
+        /// <param name="blkptr"></param>
+        /// <param name="dva"></param>
+        /// <returns>A buffer allocated from <see cref="Program.RentBytes"/>.</returns>
+        private ArraySegment<byte> ReadPhyical(blkptr_t blkptr, dva_t dva)
+        {
+            Vdev dev = mVdevs[dva.VDev];
+            int hddReadSize = dva.IsGang ? zio_gbh_phys_t.SPA_GANGBLOCKSIZE : blkptr.PhysicalSizeBytes;
+
+            var hddBytes = Program.RentBytes(hddReadSize);
+            dev.ReadBytes(hddBytes, dva.Offset << SPA_MINBLOCKSHIFT);
+
+            if (!dva.IsGang)
+            {
+                return hddBytes;
+            }
+
+            var gangHeader = Program.ToStruct<zio_gbh_phys_t>(hddBytes);
+
+            bool isChecksumValid = IsEmbeddedChecksumValid(hddBytes, CalculateGangChecksumVerifier(ref blkptr));                
+
+            Program.ReturnBytes(hddBytes);
+            hddBytes = default(ArraySegment<byte>);
+
+            if (!isChecksumValid)
+                throw new Exception("Could not find a correct copy of the requested data.");
+
+            int realPhsyicalSize =
+                gangHeader.zg_blkptr1.LogicalSizeBytes +
+                gangHeader.zg_blkptr2.LogicalSizeBytes +
+                gangHeader.zg_blkptr3.LogicalSizeBytes;
+            Debug.Assert(realPhsyicalSize == blkptr.PhysicalSizeBytes);
+            var physicalBytes = Program.RentBytes(realPhsyicalSize);
+
+            int offset = 0;
+            ReadGangBlkPtr(gangHeader.zg_blkptr1, physicalBytes, ref offset);
+            ReadGangBlkPtr(gangHeader.zg_blkptr2, physicalBytes, ref offset);
+            ReadGangBlkPtr(gangHeader.zg_blkptr3, physicalBytes, ref offset);
+            Debug.Assert(offset == realPhsyicalSize, "Did not read enough gang data!");
+
+            return physicalBytes;
+        }
+
         private void Read(blkptr_t blkptr, dva_t dva, ArraySegment<byte> dest)
         {
             if (dva.IsGang && blkptr.Compress != zio_compress.OFF)
@@ -158,48 +201,22 @@ namespace ZfsSharp
                 throw new Exception("A compressed gang block? It seems redundent to decompress twice.");
             }
 
-            Vdev dev = mVdevs[dva.VDev];
-            int hddReadSize = dva.IsGang ? zio_gbh_phys_t.SPA_GANGBLOCKSIZE : ((int)blkptr.PSize + 1) * SPA_MINBLOCKSIZE;
-
-            foreach (byte[] hddBytes in dev.ReadBytes(dva.Offset << SPA_MINBLOCKSHIFT, hddReadSize))
+            var physicalBytes = ReadPhyical(blkptr, dva);
+            try
             {
-                byte[] physicalBytes;
-                if (dva.IsGang)
-                {
-                    var gangHeader = Program.ToStruct<zio_gbh_phys_t>(hddBytes);
-                    if (!IsEmbeddedChecksumValid(hddBytes, CalculateGangChecksumVerifier(ref blkptr)))
-                        continue;
-
-                    physicalBytes = new byte[
-                        gangHeader.zg_blkptr1.LogicalSizeBytes +
-                        gangHeader.zg_blkptr2.LogicalSizeBytes +
-                        gangHeader.zg_blkptr3.LogicalSizeBytes];
-
-                    int offset = 0;
-                    ReadGangBlkPtr(gangHeader.zg_blkptr1, new ArraySegment<byte>(physicalBytes), ref offset);
-                    ReadGangBlkPtr(gangHeader.zg_blkptr2, new ArraySegment<byte>(physicalBytes), ref offset);
-                    ReadGangBlkPtr(gangHeader.zg_blkptr3, new ArraySegment<byte>(physicalBytes), ref offset);
-
-                    if (offset != physicalBytes.Length)
-                        throw new Exception("Did not read enough gang data!");
-                }
-                else
-                {
-                    physicalBytes = hddBytes;
-                }
-
-                var chk = mChecksums[blkptr.Checksum].Calculate(new ArraySegment<byte>(physicalBytes));
+                var chk = mChecksums[blkptr.Checksum].Calculate(physicalBytes);
                 if (!chk.Equals(blkptr.cksum))
                 {
                     LogChecksumError();
-                    continue;
+                    throw new Exception("Could not find a correct copy of the requested data.");
                 }
 
-                mCompression[blkptr.Compress].Decompress(new ArraySegment<byte>(physicalBytes), dest);
-                return;
+                mCompression[blkptr.Compress].Decompress(physicalBytes, dest);
             }
-
-            throw new Exception("Could not find a correct copy of the requested data.");
+            finally
+            {
+                Program.ReturnBytes(physicalBytes);
+            }
         }
 
         public unsafe T Get<T>(blkptr_t blkptr) where T : struct
