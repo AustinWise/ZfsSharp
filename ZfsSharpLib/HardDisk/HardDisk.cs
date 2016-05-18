@@ -10,7 +10,15 @@ namespace ZfsSharp
                 throw new ArgumentOutOfRangeException();
         }
 
-        public abstract void Get<T>(long offset, out T @struct) where T : struct;
+        public void Get<T>(long offset, out T @struct) where T : struct
+        {
+            int structSize = Program.SizeOf<T>();
+            CheckOffsets(offset, structSize);
+            var bytes = Program.RentBytes(structSize);
+            ReadBytes(bytes, offset);
+            @struct = Program.ToStruct<T>(bytes);
+            Program.ReturnBytes(bytes);
+        }
 
         /// <summary>
         /// Reads and verifies data from a label.
@@ -36,19 +44,14 @@ namespace ZfsSharp
             return ret;
         }
 
-        public virtual byte[] ReadBytes(long offset, int count)
+        public byte[] ReadBytes(long offset, int count)
         {
             var ret = new byte[count];
-            ReadBytes(ret, 0, offset, count);
+            ReadBytes(new ArraySegment<byte>(ret, 0, count), offset);
             return ret;
         }
 
-        public abstract void ReadBytes(byte[] array, int arrayOffset, long offset, int count);
-
-        public void ReadBytes(ArraySegment<byte> dest, long offset)
-        {
-            ReadBytes(dest.Array, dest.Offset, offset, dest.Count);
-        }
+        public abstract void ReadBytes(ArraySegment<byte> dest, long offset);
 
         public abstract long Length
         {

@@ -187,15 +187,10 @@ namespace ZfsSharp.HardDisks
                 }
             }
 
-            public override void Get<T>(long offset, out T @struct)
+            public override void ReadBytes(ArraySegment<byte> dest, long offset)
             {
-                @struct = Program.ToStruct<T>(ReadBytes(offset, Program.SizeOf<T>()));
-            }
-
-            public override void ReadBytes(byte[] array, int arrayOffset, long offset, int size)
-            {
-                CheckOffsets(offset, size);
-                Program.MultiBlockCopy<long>(new ArraySegment<byte>(array, 0, size), offset, mBlockSize, getBlockOffset, readBlock);
+                CheckOffsets(offset, dest.Count);
+                Program.MultiBlockCopy<long>(dest, offset, mBlockSize, getBlockOffset, readBlock);
             }
 
             private long getBlockOffset(long blockId)

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
@@ -7,8 +6,6 @@ namespace ZfsSharp
 {
     class DNode
     {
-        static readonly ArrayPool<byte> sPool = ArrayPool<byte>.Shared;
-
         readonly Zio mZio;
         dnode_phys_t mPhys;
 
@@ -156,10 +153,10 @@ namespace ZfsSharp
             }
             else
             {
-                var src = sPool.Rent(logicalBlockSize);
-                mZio.Read(blkptr, new ArraySegment<byte>(src, 0, logicalBlockSize));
-                Buffer.BlockCopy(src, startNdx, dest.Array, dest.Offset, dest.Count);
-                sPool.Return(src);
+                var src = Program.RentBytes(logicalBlockSize);
+                mZio.Read(blkptr, src);
+                Buffer.BlockCopy(src.Array, src.Offset + startNdx, dest.Array, dest.Offset, dest.Count);
+                Program.ReturnBytes(src);
             }
         }
 
@@ -180,7 +177,7 @@ namespace ZfsSharp
             if (indirOffsets.Count != 0)
             {
                 int indirSize = 1 << mPhys.IndirectBlockShift;
-                var indirBlock = new ArraySegment<byte>(sPool.Rent(indirSize), 0, indirSize);
+                var indirBlock = Program.RentBytes(indirSize);
                 while (indirOffsets.Count != 0 && !ptr.IsHole)
                 {
                     mZio.Read(ptr, indirBlock);
@@ -188,7 +185,7 @@ namespace ZfsSharp
                     const int BP_SIZE = 1 << blkptr_t.SPA_BLKPTRSHIFT;
                     ptr = Program.ToStruct<blkptr_t>(indirBlock.SubSegment(indirectNdx * BP_SIZE, BP_SIZE));
                 }
-                sPool.Return(indirBlock.Array);
+                Program.ReturnBytes(indirBlock);
             }
 
             return ptr;

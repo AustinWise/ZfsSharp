@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using ZfsSharp.VirtualDevices;
 
 namespace ZfsSharp
@@ -8,7 +10,6 @@ namespace ZfsSharp
     class Zio
     {
         static readonly Sha256 sEmbeddedChecksum = new Sha256();
-        static readonly ArrayPool<byte> sPool = ArrayPool<byte>.Shared;
 
         public unsafe static bool IsEmbeddedChecksumValid(byte[] bytes, zio_cksum_t verifier)
         {
@@ -74,32 +75,39 @@ namespace ZfsSharp
 
         unsafe void ReadEmbedded(blkptr_t blkptr, ArraySegment<byte> dest)
         {
-            //Console.WriteLine(blkptr.EmbeddedData1[0]);
             if (blkptr.EmbedType != EmbeddedType.Data)
                 throw new Exception("Unsupported embedded type: " + blkptr.EmbedType);
 
             int physicalSize = blkptr.PSize + 1;
             if (physicalSize > blkptr_t.EM_DATA_SIZE)
                 throw new Exception("PSize is too big!");
-            byte[] physicalBytes = sPool.Rent(physicalSize);
+            var physicalBytes = Program.RentBytes(physicalSize);
 
-            int bytesRead = 0;
+            const int NUMBER_OF_EMBEDDED_CHUNKS = 3;
 
-            for (int i = 0; bytesRead < physicalSize && i < blkptr_t.EM_DATA_1_SIZE; i++)
+            Debug.Assert(blkptr_t.EmbeddedSizes.Length == NUMBER_OF_EMBEDDED_CHUNKS);
+            byte** embeddedDataPoints = stackalloc byte*[NUMBER_OF_EMBEDDED_CHUNKS];
+            embeddedDataPoints[0] = blkptr.EmbeddedData1;
+            embeddedDataPoints[1] = blkptr.EmbeddedData2;
+            embeddedDataPoints[2] = blkptr.EmbeddedData3;
+
+            fixed (byte* pStartPtr = physicalBytes.Array)
             {
-                physicalBytes[bytesRead++] = blkptr.EmbeddedData1[i];
-            }
-            for (int i = 0; bytesRead < physicalSize && i < blkptr_t.EM_DATA_2_SIZE; i++)
-            {
-                physicalBytes[bytesRead++] = blkptr.EmbeddedData2[i];
-            }
-            for (int i = 0; bytesRead < physicalSize && i < blkptr_t.EM_DATA_3_SIZE; i++)
-            {
-                physicalBytes[bytesRead++] = blkptr.EmbeddedData3[i];
+                var pBytes = pStartPtr + physicalBytes.Offset;
+                int remaingBytes = physicalSize;
+
+                for (int i = 0; remaingBytes > 0 && i < NUMBER_OF_EMBEDDED_CHUNKS; i++)
+                {
+                    int size = Math.Min(remaingBytes, blkptr_t.EmbeddedSizes[i]);
+                    Debug.Assert(size > 0);
+                    Unsafe.CopyBlock(pBytes, embeddedDataPoints[i], (uint)size);
+                    pBytes += size;
+                    remaingBytes -= size;
+                }
             }
 
-            mCompression[blkptr.Compress].Decompress(new ArraySegment<byte>(physicalBytes, 0, physicalSize), dest);
-            sPool.Return(physicalBytes);
+            mCompression[blkptr.Compress].Decompress(physicalBytes, dest);
+            Program.ReturnBytes(physicalBytes);
         }
 
         public void Read(blkptr_t blkptr, ArraySegment<byte> dest)

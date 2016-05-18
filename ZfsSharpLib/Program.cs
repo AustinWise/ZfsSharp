@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -21,6 +22,18 @@ namespace ZfsSharp
 
     static class Program
     {
+        static readonly ArrayPool<byte> sBytePool = ArrayPool<byte>.Shared;
+
+        public static ArraySegment<byte> RentBytes(int size)
+        {
+            return new ArraySegment<byte>(sBytePool.Rent(size), 0, size);
+        }
+
+        public static void ReturnBytes(ArraySegment<byte> buffer, bool clearArray = false)
+        {
+            sBytePool.Return(buffer.Array, clearArray);
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int SizeOf<T>()
         {

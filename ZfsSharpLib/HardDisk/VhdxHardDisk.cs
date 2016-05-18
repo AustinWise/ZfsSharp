@@ -333,14 +333,10 @@ namespace ZfsSharp.HardDisks
             mHdd.Dispose();
         }
 
-        public override void Get<T>(long offset, out T @struct)
+        public override void ReadBytes(ArraySegment<byte> dest, long offset)
         {
-            @struct = Program.ToStruct<T>(ReadBytes(offset, Program.SizeOf<T>()));
-        }
-
-        public override void ReadBytes(byte[] array, int arrayOffset, long offset, int count)
-        {
-            Program.MultiBlockCopy<long>(new ArraySegment<byte>(array, arrayOffset, count), offset, mBlockSize, getBlockKey, readBlock);
+            CheckOffsets(offset, dest.Count);
+            Program.MultiBlockCopy<long>(dest, offset, mBlockSize, getBlockKey, readBlock);
         }
 
         long getBlockKey(long key)

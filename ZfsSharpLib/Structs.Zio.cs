@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Immutable;
 using System.Runtime.InteropServices;
 
 namespace ZfsSharp
@@ -132,6 +133,9 @@ namespace ZfsSharp
         public const int EM_DATA_2_SIZE = 3 * 8;
         public const int EM_DATA_3_SIZE = 5 * 8;
         public const int EM_DATA_SIZE = EM_DATA_1_SIZE + EM_DATA_2_SIZE + EM_DATA_3_SIZE;
+
+        public static readonly ImmutableArray<int> EmbeddedSizes =
+            ImmutableArray.Create(EM_DATA_1_SIZE, EM_DATA_2_SIZE, EM_DATA_3_SIZE);
 
         [FieldOffset(0)]
         public fixed byte EmbeddedData1[EM_DATA_1_SIZE];

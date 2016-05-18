@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.IO.MemoryMappedFiles;
 
 namespace ZfsSharp.HardDisks
@@ -16,23 +17,13 @@ namespace ZfsSharp.HardDisks
             mFile = MemoryMappedFile.CreateFromFile(path, FileMode.Open);
         }
 
-        public override void Get<T>(long offset, out T @struct)
+        public override void ReadBytes(ArraySegment<byte> dest, long offset)
         {
-            int size = Program.SizeOf<T>();
-            CheckOffsets(offset, size);
-            using (var ac = mFile.CreateViewAccessor(offset, size))
+            CheckOffsets(offset, dest.Count);
+            using (var s = mFile.CreateViewStream(offset, dest.Count, MemoryMappedFileAccess.Read))
             {
-                ac.Read(0, out @struct);
-            }
-        }
-
-        public override void ReadBytes(byte[] array, int arrayOffset, long offset, int count)
-        {
-            CheckOffsets(offset, count);
-            using (var s = mFile.CreateViewStream(offset, count, MemoryMappedFileAccess.Read))
-            {
-                var rc = s.Read(array, (int)arrayOffset, (int)count);
-                if (rc != count)
+                var rc = s.Read(dest.Array, dest.Offset, dest.Count);
+                if (rc != dest.Count)
                     throw new IOException("Not enough bytes read.");
             }
         }

@@ -32,6 +32,13 @@ namespace ZfsSharp
             return seg.Array[seg.Offset + offset];
         }
 
+        public static void Set<T>(this ArraySegment<T> seg, int offset, T value)
+        {
+            if (seg.Offset + offset >= seg.Count)
+                throw new ArgumentOutOfRangeException(nameof(offset));
+            seg.Array[seg.Offset + offset] = value;
+        }
+
         public unsafe static void ZeroMemory(this ArraySegment<byte> dest)
         {
             fixed (byte* pDest = dest.Array)
