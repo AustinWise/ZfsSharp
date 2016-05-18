@@ -13,12 +13,17 @@ namespace ZfsSharp
             mMos = mos;
             mSlabSize = 1L << metaSlabShift;
 
-            var someBytes = mos.ReadContent(metaSlabArray);
-            int numberOfSlabs = someBytes.Length / 8;
-            mRangeMap = new RangeMap[numberOfSlabs];
+            var slabDnode = mos.ReadEntry(metaSlabArray);
+            var someBytes = Program.RentBytes(checked((int)slabDnode.AvailableDataSize));
+            slabDnode.Read(someBytes, 0);
 
+            int numberOfSlabs = someBytes.Count / 8;
+            mRangeMap = new RangeMap[numberOfSlabs];
             long[] ids = new long[numberOfSlabs];
-            Buffer.BlockCopy(someBytes, 0, ids, 0, someBytes.Length);
+            Buffer.BlockCopy(someBytes.Array, someBytes.Offset, ids, 0, someBytes.Count);
+
+            Program.ReturnBytes(someBytes);
+            someBytes = default(ArraySegment<byte>);
 
             for (int i = 0; i < numberOfSlabs; i++)
             {
@@ -43,7 +48,7 @@ namespace ZfsSharp
             return mRangeMap[slabNdx].ContainsRange((ulong)offset, (ulong)range);
         }
 
-        RangeMap LoadEntrysForMetaSlab(long dnEntry, int sm_shift)
+        unsafe RangeMap LoadEntrysForMetaSlab(long dnEntry, int sm_shift)
         {
             RangeMap ret = new RangeMap();
 
@@ -59,10 +64,11 @@ namespace ZfsSharp
             if (head.smo_objsize > int.MaxValue)
                 throw new Exception("Holy cow, this space map is greater than 2GB, what is wrong with your VDev!?!?");
 
-            var someBytes = dn.Read(0, (int)head.smo_objsize);
-            for (int i = 0; i < someBytes.Length; i += 8)
+            var someBytes = Program.RentBytes((int)head.smo_objsize);
+            dn.Read(someBytes, 0);
+            for (int i = 0; i < someBytes.Count; i += 8)
             {
-                var ent = Program.ToStruct<spaceMapEntry>(someBytes, i);
+                var ent = Program.ToStruct<spaceMapEntry>(someBytes.SubSegment(i, sizeof(spaceMapEntry)));
                 if (ent.IsDebug)
                     continue;
 
@@ -78,6 +84,7 @@ namespace ZfsSharp
                     ret.RemoveRange(offset, range);
                 }
             }
+            Program.ReturnBytes(someBytes);
 
             return ret;
         }

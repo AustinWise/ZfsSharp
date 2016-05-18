@@ -40,48 +40,66 @@ namespace ZfsSharp
 
         unsafe public Dictionary<string, object> Parse()
         {
-            var zapBytes = mDnode.Read();
-            fixed (byte* ptr = zapBytes)
+            var zapBytes = Program.RentBytes(checked((int)mDnode.AvailableDataSize));
+            mDnode.Read(zapBytes, 0);
+            try
             {
-                mzap_phys_t zapHeader = Program.ToStruct<mzap_phys_t>(ptr, 0, zapBytes.Length);
+                fixed (byte* underlyingArrayPointer = zapBytes.Array)
+                {
+                    var ptr = underlyingArrayPointer + zapBytes.Offset;
+                    mzap_phys_t zapHeader = Program.ToStruct<mzap_phys_t>(ptr, 0, zapBytes.Count);
 
-                if (zapHeader.BlockType == ZapBlockType.MICRO)
-                    return ParseMicro(ptr, zapBytes.Length).ToDictionary(d => d.Key, d => (object)d.Value);
-                else if (zapHeader.BlockType == ZapBlockType.HEADER)
-                    return ParseFat(ptr, zapBytes.Length);
-                else
-                    throw new NotSupportedException();
+                    if (zapHeader.BlockType == ZapBlockType.MICRO)
+                        return ParseMicro(ptr, zapBytes.Count).ToDictionary(d => d.Key, d => (object)d.Value);
+                    else if (zapHeader.BlockType == ZapBlockType.HEADER)
+                        return ParseFat(ptr, zapBytes.Count);
+                    else
+                        throw new NotSupportedException();
+                }
+            }
+            finally
+            {
+                Program.ReturnBytes(zapBytes);
             }
         }
 
         unsafe public Dictionary<string, long> GetDirectoryEntries(bool skipUnexpectedValues = false)
         {
-            var zapBytes = mDnode.Read();
-            fixed (byte* ptr = zapBytes)
+            var zapBytes = Program.RentBytes(checked((int)mDnode.AvailableDataSize));
+            mDnode.Read(zapBytes, 0);
+            try
             {
-                mzap_phys_t zapHeader = Program.ToStruct<mzap_phys_t>(ptr, 0, zapBytes.Length);
-
-                if (zapHeader.BlockType == ZapBlockType.MICRO)
-                    return ParseMicro(ptr, zapBytes.Length);
-                else if (zapHeader.BlockType == ZapBlockType.HEADER)
+                fixed (byte* underlyingArrayPointer = zapBytes.Array)
                 {
-                    var fat = ParseFat(ptr, zapBytes.Length);
-                    var ret = new Dictionary<string, long>();
-                    foreach (var kvp in fat)
+                    var ptr = underlyingArrayPointer + zapBytes.Offset;
+                    mzap_phys_t zapHeader = Program.ToStruct<mzap_phys_t>(ptr, 0, zapBytes.Count);
+
+                    if (zapHeader.BlockType == ZapBlockType.MICRO)
+                        return ParseMicro(ptr, zapBytes.Count);
+                    else if (zapHeader.BlockType == ZapBlockType.HEADER)
                     {
-                        var data = kvp.Value as long[];
-                        if (data == null || data.Length != 1)
+                        var fat = ParseFat(ptr, zapBytes.Count);
+                        var ret = new Dictionary<string, long>();
+                        foreach (var kvp in fat)
                         {
-                            if (skipUnexpectedValues)
-                                continue;
-                            throw new Exception("Directory entry '" + kvp.Key + "' did not point to the expected type of array! It was: " + kvp.Value.GetType());
+                            var data = kvp.Value as long[];
+                            if (data == null || data.Length != 1)
+                            {
+                                if (skipUnexpectedValues)
+                                    continue;
+                                throw new Exception("Directory entry '" + kvp.Key + "' did not point to the expected type of array! It was: " + kvp.Value.GetType());
+                            }
+                            ret.Add(kvp.Key, data[0]);
                         }
-                        ret.Add(kvp.Key, data[0]);
+                        return ret;
                     }
-                    return ret;
+                    else
+                        throw new NotSupportedException();
                 }
-                else
-                    throw new NotSupportedException();
+            }
+            finally
+            {
+                Program.ReturnBytes(zapBytes);
             }
         }
 

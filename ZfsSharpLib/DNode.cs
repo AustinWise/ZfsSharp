@@ -134,12 +134,17 @@ namespace ZfsSharp
 
         public void Read(byte[] buffer, long offset, int size)
         {
-            if (offset < 0 || size < 0)
+            Read(new ArraySegment<byte>(buffer, 0, size), offset);
+        }
+
+        public void Read(ArraySegment<byte> dest, long offset)
+        {
+            if (offset < 0 || dest.Count < 0)
                 throw new ArgumentOutOfRangeException();
-            if ((offset + size) > mPhys.AvailableDataSize)
+            if ((offset + dest.Count) > mPhys.AvailableDataSize)
                 throw new ArgumentOutOfRangeException();
 
-            Program.MultiBlockCopy<blkptr_t>(new ArraySegment<byte>(buffer, 0, size), offset, mPhys.BlockSizeInBytes, GetBlock, readBlock);
+            Program.MultiBlockCopy<blkptr_t>(dest, offset, mPhys.BlockSizeInBytes, GetBlock, readBlock);
         }
 
         private void readBlock(ArraySegment<byte> dest, blkptr_t blkptr, int startNdx)
@@ -189,11 +194,6 @@ namespace ZfsSharp
             }
 
             return ptr;
-        }
-
-        public byte[] Read()
-        {
-            return Read(0, (int)mPhys.AvailableDataSize);
         }
     }
 }

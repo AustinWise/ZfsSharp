@@ -61,6 +61,11 @@ namespace ZfsSharp
 
         private Dictionary<string, object> mVals = new Dictionary<string, object>();
 
+        public NvList(ArraySegment<byte> bytes)
+            : this(new MemoryStream(bytes.Array, bytes.Offset, bytes.Count))
+        {
+        }
+
         public NvList(byte[] bytes)
             : this(new MemoryStream(bytes))
         {
@@ -78,9 +83,7 @@ namespace ZfsSharp
                 throw new Exception("Incorrect endianness.");
             short reserved = r.ReadInt16(); //reserved fields
 
-
             Load(r);
-
         }
 
         private NvList(NvListBinaryReader r)

@@ -28,26 +28,16 @@ namespace ZfsSharp
 
         public unsafe DNode ReadEntry(long index)
         {
-            var dnStuff = mMetaDNode.Read(index << dnode_phys_t.DNODE_SHIFT, sizeof(dnode_phys_t));
-            return new DNode(mZio, Program.ToStruct<dnode_phys_t>(dnStuff));
-        }
-
-        public byte[] ReadContent(long index)
-        {
-            var dn = ReadEntry(index);
-            return dn.Read();
-        }
-
-        public byte[] ReadContent(long index, long offset, int size)
-        {
-            var dn = ReadEntry(index);
-            return dn.Read(offset, size);
-        }
-
-        public void ReadContent(long index, byte[] buffer, long offset, int size)
-        {
-            var dn = ReadEntry(index);
-            dn.Read(buffer, offset, size);
+            var buf = Program.RentBytes(sizeof(dnode_phys_t));
+            try
+            {
+                mMetaDNode.Read(buf, index << dnode_phys_t.DNODE_SHIFT);
+                return new DNode(mZio, Program.ToStruct<dnode_phys_t>(buf));
+            }
+            finally
+            {
+                Program.ReturnBytes(buf);
+            }
         }
     }
 }

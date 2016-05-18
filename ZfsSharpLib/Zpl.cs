@@ -178,15 +178,6 @@ namespace ZfsSharp
             return true;
         }
 
-        private byte[] GetSaBytes(DNode dn)
-        {
-            if (dn.BonusType != dmu_object_type_t.SA)
-                throw new NotSupportedException();
-
-            var bonusBytes = dn.ReadBonus();
-            return bonusBytes;
-        }
-
         class SaLayout
         {
             private Dictionary<zpl_attr_t, int> mVarSizeOffset = new Dictionary<zpl_attr_t, int>();

@@ -104,7 +104,13 @@ namespace ZfsSharp
                 //TODO: maybe do something interesting with the stats
             }
 
-            mConfig = new NvList(mMos.ReadContent(mObjDir[CONFIG]));
+            {
+                var configDn = mMos.ReadEntry(mObjDir[CONFIG]);
+                var configBytes = Program.RentBytes(checked((int)configDn.AvailableDataSize));
+                configDn.Read(configBytes, 0);
+                mConfig = new NvList(configBytes);
+                Program.ReturnBytes(configBytes);
+            }
 
             CheckVersion(mConfig);
             CheckFeatures();
