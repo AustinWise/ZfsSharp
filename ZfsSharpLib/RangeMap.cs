@@ -25,7 +25,7 @@ namespace ZfsSharp
             var near = mTree.FindNearestValues(newRange);
 
             //try to merge with the left
-            if (near.Item1 != null)
+            if (near.Item1.IsValid)
             {
                 if (near.Item1.Intersects(newRange))
                     throw new Exception("Range already added");
@@ -38,7 +38,7 @@ namespace ZfsSharp
             }
 
             //try to merge with the right
-            if (near.Item2 != null)
+            if (near.Item2.IsValid)
             {
                 if (near.Item2.Intersects(newRange))
                     throw new Exception("Range already added.");
@@ -64,12 +64,12 @@ namespace ZfsSharp
 
             var near = mTree.FindNearestValues(removeRange);
 
-            if (near.Item1 != null && near.Item1.Contains(removeRange))
+            if (near.Item1.IsValid && near.Item1.Contains(removeRange))
             {
                 SplitNode(near.Item1, removeRange);
                 return;
             }
-            else if (near.Item2 != null && near.Item2.Contains(removeRange))
+            else if (near.Item2.IsValid && near.Item2.Contains(removeRange))
             {
                 SplitNode(near.Item2, removeRange);
                 return;
@@ -104,7 +104,7 @@ namespace ZfsSharp
                 return false;
             var search = new SpaceRange(offset, range);
             var near = mTree.FindNearestValues(search);
-            return (near.Item1 != null && near.Item1.Contains(search)) || (near.Item2 != null && near.Item2.Contains(search));
+            return (near.Item1.IsValid && near.Item1.Contains(search)) || (near.Item2.IsValid && near.Item2.Contains(search));
         }
 
         public void Print()
@@ -116,7 +116,7 @@ namespace ZfsSharp
             Console.WriteLine();
         }
 
-        class SpaceRange : IComparable<SpaceRange>
+        struct SpaceRange : IComparable<SpaceRange>
         {
             public readonly ulong Offset;
             public readonly ulong Range;
@@ -126,6 +126,8 @@ namespace ZfsSharp
                 this.Offset = offset;
                 this.Range = range;
             }
+
+            public bool IsValid => Range != 0;
 
             public int CompareTo(SpaceRange other)
             {
