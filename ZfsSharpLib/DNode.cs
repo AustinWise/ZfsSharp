@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
@@ -6,7 +7,9 @@ namespace ZfsSharp
 {
     class DNode
     {
-        private Zio mZio;
+        static readonly ArrayPool<byte> sPool = ArrayPool<byte>.Shared;
+
+        readonly Zio mZio;
         dnode_phys_t mPhys;
 
         public DNode(Zio zio, dnode_phys_t phys)
@@ -153,21 +156,22 @@ namespace ZfsSharp
             }
             else
             {
-                var src = new byte[logicalBlockSize];
-                mZio.Read(blkptr, new ArraySegment<byte>(src));
+                var src = sPool.Rent(logicalBlockSize);
+                mZio.Read(blkptr, new ArraySegment<byte>(src, 0, logicalBlockSize));
                 Buffer.BlockCopy(src, startNdx, dest, destOffset, cpyCount);
+                sPool.Return(src);
             }
         }
 
         private blkptr_t GetBlock(long blockId)
         {
             int indirBlockShift = mPhys.IndirectBlockShift - blkptr_t.SPA_BLKPTRSHIFT;
-            long indirMask = (1 << indirBlockShift) - 1;
+            int indirMask = (1 << indirBlockShift) - 1;
 
-            var indirOffsets = new Stack<long>(mPhys.NLevels);
+            var indirOffsets = new Stack<int>(mPhys.NLevels);
             for (int i = 0; i < mPhys.NLevels; i++)
             {
-                indirOffsets.Push(blockId & indirMask);
+                indirOffsets.Push((int)(blockId & indirMask));
                 blockId >>= indirBlockShift;
             }
 
@@ -175,13 +179,16 @@ namespace ZfsSharp
 
             if (indirOffsets.Count != 0)
             {
-                byte[] indirBlock = new byte[1 << mPhys.IndirectBlockShift];
+                int indirSize = 1 << mPhys.IndirectBlockShift;
+                var indirBlock = new ArraySegment<byte>(sPool.Rent(indirSize), 0, indirSize);
                 while (indirOffsets.Count != 0 && !ptr.IsHole)
                 {
-                    mZio.Read(ptr, new ArraySegment<byte>(indirBlock));
+                    mZio.Read(ptr, indirBlock);
                     var indirectNdx = indirOffsets.Pop();
-                    ptr = Program.ToStruct<blkptr_t>(indirBlock, indirectNdx * (1 << blkptr_t.SPA_BLKPTRSHIFT));
+                    const int BP_SIZE = 1 << blkptr_t.SPA_BLKPTRSHIFT;
+                    ptr = Program.ToStruct<blkptr_t>(indirBlock.SubSegment(indirectNdx * BP_SIZE, BP_SIZE));
                 }
+                sPool.Return(indirBlock.Array);
             }
 
             return ptr;

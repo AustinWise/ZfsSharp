@@ -325,12 +325,12 @@ namespace ZfsSharp
                 {
                     fixed (byte* ptr = name)
                     {
-                        if (*ptr == 0)
-                            return null;
-                        string ret = Marshal.PtrToStringAnsi(new IntPtr(ptr), MZAP_NAME_LEN);
-                        int zeroNdx = ret.IndexOf('\0');
-                        if (zeroNdx != -1)
-                            ret = ret.Substring(0, zeroNdx);
+                        int length = 0;
+                        while (length < MZAP_NAME_LEN && ptr[length] != 0)
+                        {
+                            length++;
+                        }
+                        string ret = Marshal.PtrToStringAnsi(new IntPtr(ptr), length);
                         return ret;
                     }
                 }
