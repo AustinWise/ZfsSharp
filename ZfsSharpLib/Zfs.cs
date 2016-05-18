@@ -29,7 +29,7 @@ namespace ZfsSharp
 
         static void assertStructSize<T>(int size)
         {
-            int messuredSize = System.Runtime.InteropServices.Marshal.SizeOf(typeof(T));
+            int messuredSize = Program.SizeOf<T>();
             System.Diagnostics.Debug.Assert(messuredSize == size);
         }
 

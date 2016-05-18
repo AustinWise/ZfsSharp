@@ -1,12 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.IO.MemoryMappedFiles;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using System.Collections;
+using System.Runtime.InteropServices;
 
 namespace ZfsSharp.HardDisks
 {
@@ -168,7 +162,7 @@ namespace ZfsSharp.HardDisks
             public DynamicVhd(HardDisk hdd)
             {
                 VhdHeader head = GetHeader(hdd);
-                int dySize = Marshal.SizeOf(typeof(DynamicHeader));
+                int dySize = Program.SizeOf<DynamicHeader>();
                 DynamicHeader dyhead = Program.ToStructByteSwap<DynamicHeader>(hdd.ReadBytes(head.DataOffset, dySize));
                 if (dyhead.CookieStr != "cxsparse")
                     throw new Exception();
@@ -195,7 +189,7 @@ namespace ZfsSharp.HardDisks
 
             public override void Get<T>(long offset, out T @struct)
             {
-                @struct = Program.ToStruct<T>(ReadBytes(offset, Marshal.SizeOf(typeof(T))));
+                @struct = Program.ToStruct<T>(ReadBytes(offset, Program.SizeOf<T>()));
             }
 
             public override void ReadBytes(byte[] array, int arrayOffset, long offset, int size)

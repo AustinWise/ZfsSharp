@@ -21,6 +21,12 @@ namespace ZfsSharp
 
     static class Program
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int SizeOf<T>()
+        {
+            return Unsafe.SizeOf<T>();
+        }
+
         public static T ToStruct<T>(byte[] bytes) where T : struct
         {
             return ToStruct<T>(bytes, 0);

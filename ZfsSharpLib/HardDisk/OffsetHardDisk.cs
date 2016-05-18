@@ -1,9 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
 
 namespace ZfsSharp.HardDisks
 {
@@ -47,7 +42,7 @@ namespace ZfsSharp.HardDisks
 
         public override void Get<T>(long offset, out T @struct)
         {
-            CheckOffsets(offset, Marshal.SizeOf(typeof(T)));
+            CheckOffsets(offset, Program.SizeOf<T>());
             mHdd.Get<T>(mOffset + offset, out @struct);
         }
 

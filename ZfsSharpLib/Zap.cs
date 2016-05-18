@@ -141,7 +141,7 @@ namespace ZfsSharp
 
                 var hashEntries = new SortedSet<ushort>();
 
-                offset += Marshal.SizeOf(typeof(zap_leaf_header));
+                offset += Program.SizeOf<zap_leaf_header>();
                 for (int i = 0; i < numHashEntries; i++)
                 {
                     ushort* hashPtr = (ushort*)(ptr + offset);
@@ -225,7 +225,7 @@ namespace ZfsSharp
         unsafe static T[] GetArray<T>(byte* ptr, long ptrLength, long chunkTableOffset, int chunkEntryNdx, int totalEntries) where T : struct
         {
             var byteList = new List<byte>();
-            int itemSize = Marshal.SizeOf(typeof(T));
+            int itemSize = Program.SizeOf<T>();
             GetArray(ptr, ptrLength, chunkTableOffset, chunkEntryNdx, totalEntries * itemSize, byteList);
             var byteArray = byteList.ToArray();
 

@@ -160,7 +160,7 @@ namespace ZfsSharp.HardDisks
                 int sectorBitmapCount = (int)Math.Ceiling((decimal)dataBlockCount / chunkRatio);
                 int totalBatEntries = dataBlockCount + (int)Math.Floor((dataBlockCount - 1) / (decimal)chunkRatio);
 
-                if (batRegion.Length < Unsafe.SizeOf<VHDX_BAT_ENTRY>() * totalBatEntries)
+                if (batRegion.Length < Program.SizeOf<VHDX_BAT_ENTRY>() * totalBatEntries)
                     throw new Exception("Bat region is not big enough to contain all the bat entries!");
 
                 var batBytes = mHdd.ReadBytes((long)batRegion.FileOffset, (int)batRegion.Length);
@@ -170,7 +170,7 @@ namespace ZfsSharp.HardDisks
                 for (int i = 0; i < totalBatEntries; i++)
                 {
                     var isSectorBitmap = i != 0 && i % chunkRatio == 0;
-                    var entry = Program.ToStruct<VHDX_BAT_ENTRY>(batBytes, i * Unsafe.SizeOf<VHDX_BAT_ENTRY>());
+                    var entry = Program.ToStruct<VHDX_BAT_ENTRY>(batBytes, i * Program.SizeOf<VHDX_BAT_ENTRY>());
                     if (isSectorBitmap)
                     {
                         if (entry.SectorBitmapState != SectorBitmapState.NotPresent)
@@ -217,8 +217,8 @@ namespace ZfsSharp.HardDisks
             UInt32? logicalSectorSize = null;
             for (int i = 0; i < metadataHeader.EntryCount; i++)
             {
-                int readOffset = Unsafe.SizeOf<VHDX_METADATA_TABLE_HEADER>()
-                                 + i * Unsafe.SizeOf<VHDX_METADATA_TABLE_ENTRY>();
+                int readOffset = Program.SizeOf<VHDX_METADATA_TABLE_HEADER>()
+                                 + i * Program.SizeOf<VHDX_METADATA_TABLE_ENTRY>();
                 var entry = Program.ToStruct<VHDX_METADATA_TABLE_ENTRY>(metadataBytes, readOffset);
 
                 if (entry.IsUser)
@@ -290,7 +290,7 @@ namespace ZfsSharp.HardDisks
             VHDX_REGION_TABLE_ENTRY? batRegion = null, metadataRegion = null;
             for (int i = 0; i < regionTable.EntryCount; i++)
             {
-                int offset = Unsafe.SizeOf<VHDX_REGION_TABLE_HEADER>() + i * Unsafe.SizeOf<VHDX_REGION_TABLE_ENTRY>();
+                int offset = Program.SizeOf<VHDX_REGION_TABLE_HEADER>() + i * Program.SizeOf<VHDX_REGION_TABLE_ENTRY>();
                 var entry = Program.ToStruct<VHDX_REGION_TABLE_ENTRY>(regionTableBytes, offset);
 
                 if (entry.Guid == REGION_BAT)
@@ -335,7 +335,7 @@ namespace ZfsSharp.HardDisks
 
         public override void Get<T>(long offset, out T @struct)
         {
-            @struct = Program.ToStruct<T>(ReadBytes(offset, Unsafe.SizeOf<T>()));
+            @struct = Program.ToStruct<T>(ReadBytes(offset, Program.SizeOf<T>()));
         }
 
         public override void ReadBytes(byte[] array, int arrayOffset, long offset, int count)

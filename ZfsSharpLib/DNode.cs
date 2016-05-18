@@ -74,7 +74,7 @@ namespace ZfsSharp
         unsafe public T GetBonus<T>() where T : struct
         {
             Type t = typeof(T);
-            int structSize = Marshal.SizeOf(t);
+            int structSize = Program.SizeOf<T>();
             int bonusOffset;
             int maxBonusSize;
             CalculateBonusSize(out bonusOffset, out maxBonusSize);

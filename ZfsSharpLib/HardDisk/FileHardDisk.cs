@@ -1,10 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.IO;
+﻿using System.IO;
 using System.IO.MemoryMappedFiles;
-using System.Runtime.InteropServices;
 
 namespace ZfsSharp.HardDisks
 {
@@ -23,7 +18,9 @@ namespace ZfsSharp.HardDisks
 
         public override void Get<T>(long offset, out T @struct)
         {
-            using (var ac = mFile.CreateViewAccessor(offset, Marshal.SizeOf(typeof(T))))
+            int size = Program.SizeOf<T>();
+            CheckOffsets(offset, size);
+            using (var ac = mFile.CreateViewAccessor(offset, size))
             {
                 ac.Read(0, out @struct);
             }
