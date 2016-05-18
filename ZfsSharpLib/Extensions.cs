@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace ZfsSharp
@@ -29,6 +30,14 @@ namespace ZfsSharp
             if (seg.Offset + offset >= seg.Count)
                 throw new ArgumentOutOfRangeException(nameof(offset));
             return seg.Array[seg.Offset + offset];
+        }
+
+        public unsafe static void ZeroMemory(this ArraySegment<byte> dest)
+        {
+            fixed (byte* pDest = dest.Array)
+            {
+                Unsafe.InitBlock(pDest + dest.Offset, 0, (uint)dest.Count);
+            }
         }
     }
 }

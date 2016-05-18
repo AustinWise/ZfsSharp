@@ -45,6 +45,11 @@ namespace ZfsSharp
 
         public abstract void ReadBytes(byte[] array, int arrayOffset, long offset, int count);
 
+        public void ReadBytes(ArraySegment<byte> dest, long offset)
+        {
+            ReadBytes(dest.Array, dest.Offset, offset, dest.Count);
+        }
+
         public abstract long Length
         {
             get;

@@ -141,51 +141,41 @@ namespace ZfsSharp
         /// <summary>
         /// </summary>
         /// <typeparam name="T"></typeparam>
-        /// <param name="blockKey">An identifier for the block.</param>
         /// <param name="dest">The place to store the read data.</param>
-        /// <param name="destOffset">The offset within dest to place the data.</param>
+        /// <param name="blockKey">An identifier for the block.</param>
         /// <param name="startNdx">The offset within the block to start reading from.</param>
-        /// <param name="cpyCount">The number of bytes to read.</param>
-        public delegate void BlockReader<T>(T blockKey, byte[] dest, int destOffset, int startNdx, int cpyCount);
+        public delegate void BlockReader<T>(ArraySegment<byte> dest, T blockKey, int startNdx);
 
         /// <summary>
         /// Given a large amount of data stored in equal sized blocks, reads a subset of that data efficiently.
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="dest">The place to store the read data.</param>
-        /// <param name="destOffset">The offset in dest where to store the data.</param>
         /// <param name="offset">The byte offset into the blocks to read.</param>
-        /// <param name="size">The number of bytes to read.</param>
         /// <param name="blockSize">The size of the blocks.</param>
         /// <param name="GetBlockKey">Given a block offset returns a key for reading that block.</param>
         /// <param name="ReadBlock">Given a block key, reads the block.</param>
-        public static void MultiBlockCopy<T>(byte[] dest, int destOffset, long offset, int size, int blockSize, Func<long, T> GetBlockKey, BlockReader<T> ReadBlock)
+        public static void MultiBlockCopy<T>(ArraySegment<byte> dest, long offset, int blockSize, Func<long, T> GetBlockKey, BlockReader<T> ReadBlock)
         {
-            if (dest == null)
-                throw new ArgumentNullException("dest");
-            if (destOffset < 0)
-                throw new ArgumentOutOfRangeException("destOffset");
             if (offset < 0)
                 throw new ArgumentOutOfRangeException("offset");
-            if (size < 0)
-                throw new ArgumentOutOfRangeException("size");
             if (blockSize <= 0)
                 throw new ArgumentOutOfRangeException("blockSize");
 
             List<T> blockKeys = new List<T>();
-            for (long i = (offset / blockSize) * blockSize; i < (offset + size); i += blockSize)
+            for (long i = (offset / blockSize) * blockSize; i < (offset + dest.Count); i += blockSize)
             {
                 long blockId = i / blockSize;
                 blockKeys.Add(GetBlockKey(blockId));
             }
 
-            int retNdx = destOffset;
+            int retNdx = 0;
             for (int i = 0; i < blockKeys.Count; i++)
             {
                 int startNdx, cpyCount;
-                Program.GetMultiBlockCopyOffsets(i, blockKeys.Count, blockSize, offset, size, out startNdx, out cpyCount);
+                Program.GetMultiBlockCopyOffsets(i, blockKeys.Count, blockSize, offset, dest.Count, out startNdx, out cpyCount);
 
-                ReadBlock(blockKeys[i], dest, retNdx, startNdx, cpyCount);
+                ReadBlock(dest.SubSegment(retNdx, cpyCount), blockKeys[i], startNdx);
                 retNdx += cpyCount;
             }
         }

@@ -340,7 +340,7 @@ namespace ZfsSharp.HardDisks
 
         public override void ReadBytes(byte[] array, int arrayOffset, long offset, int count)
         {
-            Program.MultiBlockCopy<long>(array, arrayOffset, offset, count, mBlockSize, getBlockKey, readBlock);
+            Program.MultiBlockCopy<long>(new ArraySegment<byte>(array, arrayOffset, count), offset, mBlockSize, getBlockKey, readBlock);
         }
 
         long getBlockKey(long key)
@@ -348,20 +348,15 @@ namespace ZfsSharp.HardDisks
             return mFileOffsets[key];
         }
 
-        unsafe void readBlock(long blockKey, byte[] dest, int destOffset, int startNdx, int cpyCount)
+        void readBlock(ArraySegment<byte> dest, long blockKey, int startNdx)
         {
             if (blockKey == 0)
             {
-                if (cpyCount <= 0 || destOffset + cpyCount > dest.Length)
-                    throw new ArgumentOutOfRangeException(nameof(cpyCount));
-                fixed (byte* pDest = dest)
-                {
-                    Unsafe.InitBlock(pDest + destOffset, 0, (uint)cpyCount);
-                }
+                dest.ZeroMemory();
             }
             else
             {
-                mHdd.ReadBytes(dest, destOffset, blockKey + startNdx, cpyCount);
+                mHdd.ReadBytes(dest, blockKey + startNdx);
             }
         }
     }

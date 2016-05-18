@@ -195,7 +195,7 @@ namespace ZfsSharp.HardDisks
             public override void ReadBytes(byte[] array, int arrayOffset, long offset, int size)
             {
                 CheckOffsets(offset, size);
-                Program.MultiBlockCopy<long>(array, 0, offset, size, mBlockSize, getBlockOffset, readBlock);
+                Program.MultiBlockCopy<long>(new ArraySegment<byte>(array, 0, size), offset, mBlockSize, getBlockOffset, readBlock);
             }
 
             private long getBlockOffset(long blockId)
@@ -206,14 +206,11 @@ namespace ZfsSharp.HardDisks
                 return blockOffset * SECTOR_SIZE;
             }
 
-            void readBlock(long blockOffset, byte[] array, int arrayOffset, int blockStartNdx, int blockCpyCount)
+            void readBlock(ArraySegment<byte> array, long blockOffset, int blockStartNdx)
             {
                 if (blockOffset == -1)
                 {
-                    for (int i = 0; i < blockCpyCount; i++)
-                    {
-                        array[arrayOffset + i] = 0;
-                    }
+                    array.ZeroMemory();
                     return;
                 }
 
@@ -222,14 +219,14 @@ namespace ZfsSharp.HardDisks
 
                 blockOffset += numberOfSectors / 8;
 
-                Program.MultiBlockCopy<long>(array, arrayOffset, blockStartNdx, blockCpyCount, SECTOR_SIZE, sector =>
+                Program.MultiBlockCopy<long>(array, blockStartNdx, SECTOR_SIZE, sector =>
                 {
                     if (!ba[(int)sector])
                         throw new Exception("Missing sector.");
                     return sector * SECTOR_SIZE;
-                }, (long sectorOffset, byte[] dest, int destOffset, int startNdx, int cpyCount) =>
+                }, (ArraySegment<byte> dest, long sectorOffset, int startNdx) =>
                 {
-                    mHdd.ReadBytes(dest, destOffset, blockOffset + sectorOffset + startNdx, cpyCount);
+                    mHdd.ReadBytes(dest, blockOffset + sectorOffset + startNdx);
                 });
             }
 

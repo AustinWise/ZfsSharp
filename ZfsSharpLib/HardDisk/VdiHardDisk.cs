@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace ZfsSharp.HardDisks
@@ -86,7 +87,7 @@ namespace ZfsSharp.HardDisks
 
         public override void ReadBytes(byte[] array, int arrayOffset, long offset, int count)
         {
-            Program.MultiBlockCopy<long>(array, arrayOffset, offset, count, mBlockSize, getBlockOffset, readBlock);
+            Program.MultiBlockCopy<long>(new ArraySegment<byte>(array, arrayOffset, count), offset, mBlockSize, getBlockOffset, readBlock);
         }
 
         private long getBlockOffset(long blockId)
@@ -97,18 +98,15 @@ namespace ZfsSharp.HardDisks
             return mDataOffset + blockOffset * mBlockSize;
         }
 
-        void readBlock(long blockOffset, byte[] array, int arrayOffset, int blockStartNdx, int blockCpyCount)
+        void readBlock(ArraySegment<byte> array, long blockOffset, int blockStartNdx)
         {
             if (blockOffset == -1)
             {
-                for (int i = 0; i < blockCpyCount; i++)
-                {
-                    array[arrayOffset + i] = 0;
-                }
+                array.ZeroMemory();
             }
             else
             {
-                mHdd.ReadBytes(array, arrayOffset, blockOffset + blockStartNdx, blockCpyCount);
+                mHdd.ReadBytes(array, blockOffset + blockStartNdx);
             }
         }
 

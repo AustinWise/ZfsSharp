@@ -142,23 +142,23 @@ namespace ZfsSharp
             if ((offset + size) > mPhys.AvailableDataSize)
                 throw new ArgumentOutOfRangeException();
 
-            Program.MultiBlockCopy<blkptr_t>(buffer, 0, offset, size, mPhys.BlockSizeInBytes, GetBlock, readBlock);
+            Program.MultiBlockCopy<blkptr_t>(new ArraySegment<byte>(buffer, 0, size), offset, mPhys.BlockSizeInBytes, GetBlock, readBlock);
         }
 
-        private void readBlock(blkptr_t blkptr, byte[] dest, int destOffset, int startNdx, int cpyCount)
+        private void readBlock(ArraySegment<byte> dest, blkptr_t blkptr, int startNdx)
         {
             if (blkptr.IsHole)
                 return;
             int logicalBlockSize = blkptr.LogicalSizeBytes;
-            if (logicalBlockSize == cpyCount)
+            if (logicalBlockSize == dest.Count)
             {
-                mZio.Read(blkptr, new ArraySegment<byte>(dest, destOffset, cpyCount));
+                mZio.Read(blkptr, dest);
             }
             else
             {
                 var src = sPool.Rent(logicalBlockSize);
                 mZio.Read(blkptr, new ArraySegment<byte>(src, 0, logicalBlockSize));
-                Buffer.BlockCopy(src, startNdx, dest, destOffset, cpyCount);
+                Buffer.BlockCopy(src, startNdx, dest.Array, dest.Offset, dest.Count);
                 sPool.Return(src);
             }
         }
