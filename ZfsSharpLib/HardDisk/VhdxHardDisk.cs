@@ -10,8 +10,9 @@ using System.Threading.Tasks;
 
 namespace ZfsSharp.HardDisks
 {
-    class VhdxHardDisk : HardDisk
+    class VhdxHardDisk : OffsetTableHardDisk
     {
+        #region Structs and stuff
         const int MAX_TABLE_ENTRIES = 2047; //region table and metadata table
         const int HEADER_SIZE = 64 * 1024;
         const int METADATA_TABLE_SIZE = 64 * 1024;
@@ -130,16 +131,13 @@ namespace ZfsSharp.HardDisks
             public SectorBitmapState SectorBitmapState => (SectorBitmapState)(data & 0x7);
             public Int64 FileOffsetMB => (long)((data >> 20) & FileOffsetMask);
         }
+        #endregion
 
-        readonly HardDisk mHdd;
         readonly long mVirtualDiskSize;
-        readonly int mBlockSize;
-        readonly long[] mFileOffsets;
 
         public VhdxHardDisk(HardDisk hdd)
+            : base(hdd)
         {
-            mHdd = hdd;
-
             VHDX_REGION_TABLE_ENTRY batRegion, metadataRegion;
             GetRegions(out batRegion, out metadataRegion);
 
@@ -165,7 +163,7 @@ namespace ZfsSharp.HardDisks
 
                 var batBytes = mHdd.ReadBytes((long)batRegion.FileOffset, (int)batRegion.Length);
 
-                mFileOffsets = new long[dataBlockCount];
+                mBlockOffsets = new long[dataBlockCount];
                 int fileOffsetsNdx = 0;
                 for (int i = 0; i < totalBatEntries; i++)
                 {
@@ -195,7 +193,9 @@ namespace ZfsSharp.HardDisks
                             default:
                                 throw new Exception($"Unknown BAT entry state: {entry.PayloadState}");
                         }
-                        mFileOffsets[fileOffsetsNdx++] = offset;
+                        if (offset == 0)
+                            offset = -1;
+                        mBlockOffsets[fileOffsetsNdx++] = offset;
                     }
                 }
             }
@@ -327,33 +327,5 @@ namespace ZfsSharp.HardDisks
         }
 
         public override long Length => mVirtualDiskSize;
-
-        public override void Dispose()
-        {
-            mHdd.Dispose();
-        }
-
-        public override void ReadBytes(ArraySegment<byte> dest, long offset)
-        {
-            CheckOffsets(offset, dest.Count);
-            Program.MultiBlockCopy<long>(dest, offset, mBlockSize, getBlockKey, readBlock);
-        }
-
-        long getBlockKey(long key)
-        {
-            return mFileOffsets[key];
-        }
-
-        void readBlock(ArraySegment<byte> dest, long blockKey, int startNdx)
-        {
-            if (blockKey == 0)
-            {
-                dest.ZeroMemory();
-            }
-            else
-            {
-                mHdd.ReadBytes(dest, blockKey + startNdx);
-            }
-        }
     }
 }

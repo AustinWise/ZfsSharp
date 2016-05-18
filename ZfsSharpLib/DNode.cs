@@ -7,11 +7,15 @@ namespace ZfsSharp
     class DNode
     {
         readonly Zio mZio;
+        readonly Func<long, blkptr_t> mGetBlockKey;
+        readonly Program.BlockReader<blkptr_t> mReadBlock;
         dnode_phys_t mPhys;
 
         public DNode(Zio zio, dnode_phys_t phys)
         {
             mZio = zio;
+            mGetBlockKey = getBlockKey;
+            mReadBlock = readBlock;
             mPhys = phys;
         }
 
@@ -158,7 +162,7 @@ namespace ZfsSharp
             if ((offset + dest.Count) > mPhys.AvailableDataSize)
                 throw new ArgumentOutOfRangeException();
 
-            Program.MultiBlockCopy<blkptr_t>(dest, offset, mPhys.BlockSizeInBytes, GetBlock, readBlock);
+            Program.MultiBlockCopy<blkptr_t>(dest, offset, mPhys.BlockSizeInBytes, mGetBlockKey, mReadBlock);
         }
 
         private void readBlock(ArraySegment<byte> dest, blkptr_t blkptr, int startNdx)
@@ -179,7 +183,7 @@ namespace ZfsSharp
             }
         }
 
-        private blkptr_t GetBlock(long blockId)
+        private blkptr_t getBlockKey(long blockId)
         {
             int indirBlockShift = mPhys.IndirectBlockShift - blkptr_t.SPA_BLKPTRSHIFT;
             int indirMask = (1 << indirBlockShift) - 1;

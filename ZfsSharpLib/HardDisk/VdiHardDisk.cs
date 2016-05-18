@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace ZfsSharp.HardDisks
 {
-    class VdiHardDisk : HardDisk
+    class VdiHardDisk : OffsetTableHardDisk
     {
         enum ImageType : uint
         {
@@ -49,14 +49,9 @@ namespace ZfsSharp.HardDisks
             public Guid UuidParent;
         }
 
-        readonly HardDisk mHdd;
-        readonly long mDataOffset;
-        readonly int mBlockSize;
-        readonly uint[] mBlockLocations;
-
         unsafe public VdiHardDisk(HardDisk hdd)
+            : base(hdd)
         {
-            this.mHdd = hdd;
             var headBytes = hdd.ReadBytes(0, sizeof(VdiHeader));
             VdiHeader head = Program.ToStruct<VdiHeader>(headBytes);
 
@@ -70,49 +65,19 @@ namespace ZfsSharp.HardDisks
             if (head.ImageType != ImageType.Dynamic)
                 throw new NotImplementedException("Only dynamic is supported.");
 
-            mBlockLocations = new uint[head.BlocksInHdd];
+            var dataOffset = head.OffsetData;
+            mBlockOffsets = new long[head.BlocksInHdd];
+            mBlockSize = (int)head.BlockSize;
+
             for (long i = 0; i < head.BlocksInHdd; i++)
             {
-                hdd.Get<uint>(head.OffsetBlocks + i * 4, out mBlockLocations[i]);
+                uint blockLoc;
+                hdd.Get<uint>(head.OffsetBlocks + i * 4, out blockLoc);
+                if (blockLoc == ~0u)
+                    mBlockOffsets[i] = -1;
+                else
+                    mBlockOffsets[i] = dataOffset + blockLoc * mBlockSize;
             }
-            mDataOffset = head.OffsetData;
-            mBlockSize = (int)head.BlockSize;
-        }
-
-        public override void ReadBytes(ArraySegment<byte> dest, long offset)
-        {
-            CheckOffsets(offset, dest.Count);
-            Program.MultiBlockCopy<long>(dest, offset, mBlockSize, getBlockOffset, readBlock);
-        }
-
-        private long getBlockOffset(long blockId)
-        {
-            uint blockOffset = mBlockLocations[blockId];
-            if (blockOffset == ~0u)
-                return -1;
-            return mDataOffset + blockOffset * mBlockSize;
-        }
-
-        void readBlock(ArraySegment<byte> array, long blockOffset, int blockStartNdx)
-        {
-            if (blockOffset == -1)
-            {
-                array.ZeroMemory();
-            }
-            else
-            {
-                mHdd.ReadBytes(array, blockOffset + blockStartNdx);
-            }
-        }
-
-        public override long Length
-        {
-            get { return this.mBlockSize * mBlockLocations.LongLength; }
-        }
-
-        public override void Dispose()
-        {
-            mHdd.Dispose();
         }
     }
 }

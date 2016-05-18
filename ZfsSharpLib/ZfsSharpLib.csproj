@@ -99,6 +99,7 @@
     <Compile Include="HardDisk\HardDisk.cs" />
     <Compile Include="HardDisk\MbrHardDisk.cs" />
     <Compile Include="HardDisk\OffsetHardDisk.cs" />
+    <Compile Include="HardDisk\OffsetTableHardDisk.cs" />
     <Compile Include="HardDisk\VdiHardDisk.cs" />
     <Compile Include="HardDisk\VhdxHardDisk.cs" />
     <Compile Include="LeafVdevInfo.cs" />

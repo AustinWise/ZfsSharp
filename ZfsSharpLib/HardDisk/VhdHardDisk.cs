@@ -151,16 +151,14 @@ namespace ZfsSharp.HardDisks
             }
         }
 
-        class DynamicVhd : HardDisk
+        class DynamicVhd : OffsetTableHardDisk
         {
             const int SECTOR_SIZE = 512;
 
             long mSize;
-            HardDisk mHdd;
-            int mBlockSize;
-            long[] mBat;
 
             public DynamicVhd(HardDisk hdd)
+                : base(hdd)
             {
                 VhdHeader head = GetHeader(hdd);
                 int dySize = Program.SizeOf<DynamicHeader>();
@@ -172,7 +170,6 @@ namespace ZfsSharp.HardDisks
                 if (dyhead.ParentUniqueID != Guid.Empty)
                     throw new NotSupportedException("Differencing disks not supported.");
 
-                mHdd = hdd;
                 mSize = head.CurrentSize;
                 mBlockSize = dyhead.BlockSize;
                 int sectorBitmapSize = (mBlockSize / SECTOR_SIZE) / 8;
@@ -180,9 +177,9 @@ namespace ZfsSharp.HardDisks
                 int numberOfBlocks = (int)(mSize / mBlockSize);
                 if (numberOfBlocks > dyhead.MaxTableEntries)
                     throw new Exception();
-                mBat = new long[numberOfBlocks];
+                mBlockOffsets = new long[numberOfBlocks];
 
-                var bat = mHdd.ReadBytes(dyhead.TableOffset, numberOfBlocks * 4);
+                var bat = hdd.ReadBytes(dyhead.TableOffset, numberOfBlocks * 4);
 
                 for (int i = 0; i < numberOfBlocks; i++)
                 {
@@ -194,41 +191,13 @@ namespace ZfsSharp.HardDisks
                         //skip the sector bitmap, since we don't support differencing disks
                         batEntry += sectorBitmapSize;
                     }
-                    mBat[i] = batEntry;
-                }
-            }
-
-            public override void ReadBytes(ArraySegment<byte> dest, long offset)
-            {
-                CheckOffsets(offset, dest.Count);
-                Program.MultiBlockCopy<long>(dest, offset, mBlockSize, getBlockOffset, readBlock);
-            }
-
-            private long getBlockOffset(long blockId)
-            {
-                return mBat[blockId];
-            }
-
-            void readBlock(ArraySegment<byte> array, long blockOffset, int blockStartNdx)
-            {
-                if (blockOffset == -1)
-                {
-                    array.ZeroMemory();
-                }
-                else
-                {
-                    mHdd.ReadBytes(array, blockOffset + blockStartNdx);
+                    mBlockOffsets[i] = batEntry;
                 }
             }
 
             public override long Length
             {
                 get { return mSize; }
-            }
-
-            public override void Dispose()
-            {
-                mHdd.Dispose();
             }
         }
     }
