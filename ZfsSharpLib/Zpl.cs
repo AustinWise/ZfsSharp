@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -77,16 +78,27 @@ namespace ZfsSharp
             get
             {
                 var dn = mZfsObjset.ReadEntry(mZfsObjDir["ROOT"]);
-                return new ZfsDirectory(this, dn);
+                using (var attr = RentAttrBytes(dn))
+                {
+                    return new ZfsDirectory(this, dn, attr);
+                }
             }
         }
 
         public byte[] GetFileContents(string path)
         {
+            ZfsFile file = GetFile(path);
+            return file.GetContents();
+        }
+
+        public ZfsFile GetFile(string path)
+        {
             var fileId = GetFsObjectId(path);
             var fileDn = mZfsObjset.ReadEntry(fileId);
-            var file = new Zpl.ZfsFile(this, null, path, fileDn);
-            return file.GetContents();
+            using (var attr = RentAttrBytes(fileDn))
+            {
+                return new Zpl.ZfsFile(this, null, path, fileDn, attr);
+            }
         }
 
         private long GetFsObjectId(string path)
@@ -108,64 +120,68 @@ namespace ZfsSharp
             return id;
         }
 
-        long GetFileSize(DNode dn)
+        ZfsItemType GetFileType(SaAttributes attr)
         {
-            return GetAttr<long>(dn, zpl_attr_t.ZPL_SIZE);
-        }
-
-        ZfsItemType GetFileType(DNode dn)
-        {
-            var mode = GetAttr<long>(dn, zpl_attr_t.ZPL_MODE);
+            var mode = attr.Get<long>(zpl_attr_t.ZPL_MODE);
             return (ZfsItemType)((mode >> 12) & 0xf);
         }
 
-        T GetAttr<T>(DNode dn, zpl_attr_t attr) where T : struct
+        internal class SaAttributes : IDisposable
         {
-            var bytes = RentAttrBytes(dn, attr);
-            try
+            ArraySegment<byte> mBuf1, mBuf2;
+            Dictionary<zpl_attr_t, ArraySegment<byte>> mEntries;
+
+            public SaAttributes(ArraySegment<byte> buf1, ArraySegment<byte> buf2, Dictionary<zpl_attr_t, ArraySegment<byte>> entries)
             {
-                return Program.ToStruct<T>(bytes);
+                this.mBuf1 = buf1;
+                this.mBuf2 = buf2;
+                this.mEntries = entries;
             }
-            finally
+
+            public ArraySegment<byte> Get(zpl_attr_t attr)
             {
-                Program.ReturnBytes(bytes);
+                return mEntries[attr];
+            }
+
+            public T Get<T>(zpl_attr_t attr) where T : struct
+            {
+                return Program.ToStruct<T>(mEntries[attr]);
+            }
+
+            public void Dispose()
+            {
+                if (mBuf1.Array != null)
+                    Program.ReturnBytes(mBuf1);
+                if (mBuf2.Array != null)
+                    Program.ReturnBytes(mBuf2);
+                mEntries = null;
+                mBuf1 = default(ArraySegment<byte>);
+                mBuf2 = default(ArraySegment<byte>);
             }
         }
 
-        /// <summary>
-        /// Gets the bytes for a attribute.
-        /// </summary>
-        /// <param name="dn"></param>
-        /// <param name="attr"></param>
-        /// <returns>The value should be return to the buffer pool using <see cref="Program.ReturnBytes"/></returns>
-        ArraySegment<byte> RentAttrBytes(DNode dn, zpl_attr_t attr)
+        SaAttributes RentAttrBytes(DNode dn)
         {
-            ArraySegment<byte> ret;
+            var bonusBuf = default(ArraySegment<byte>);
+            var spillBuff = default(ArraySegment<byte>);
+            var dicret = new Dictionary<zpl_attr_t, ArraySegment<byte>>();
 
             {
-                var bytes = dn.RentBonus();
-                if (GetAttrFromBytes(bytes, attr, out ret))
-                {
-                    return ret;
-                }
-                Program.ReturnBytes(bytes);
+                bonusBuf = dn.RentBonus();
+                GetAttrFromBytes(bonusBuf, dicret);
             }
 
             if (dn.SpillType == dmu_object_type_t.SA)
             {
-                var bytes = Program.RentBytes(dn.SpillSize);
-                dn.ReadSpill(bytes);
-                if (GetAttrFromBytes(bytes, attr, out ret))
-                {
-                    return ret;
-                }
-                Program.ReturnBytes(bytes);
+                spillBuff = Program.RentBytes(dn.SpillSize);
+                dn.ReadSpill(spillBuff);
+                GetAttrFromBytes(spillBuff, dicret);
             }
 
-            throw new KeyNotFoundException();
+            return new SaAttributes(bonusBuf, spillBuff, dicret);
         }
 
-        private bool GetAttrFromBytes(ArraySegment<byte> bytes, zpl_attr_t attr, out ArraySegment<byte> ret)
+        private void GetAttrFromBytes(ArraySegment<byte> bytes, Dictionary<zpl_attr_t, ArraySegment<byte>> dicret)
         {
             var saHeader = Program.ToStruct<sa_hdr_phys_t>(bytes.Array, bytes.Offset);
             saHeader.VerifyMagic();
@@ -176,43 +192,52 @@ namespace ZfsSharp
 
             var layout = mAttrLayouts[saHeader.layout];
 
-            if (!layout.ContainsAttr(attr))
-            {
-                ret = default(ArraySegment<byte>);
-                return false;
-            }
-
-            var varSizes = new short[layout.NumberOfVariableSizedFields];
+            var pool = ArrayPool<short>.Shared;
+            var varSizes = pool.Rent(layout.NumberOfVariableSizedFields);
             for (int i = 0; i < varSizes.Length; i++)
             {
                 varSizes[i] = Program.ToStruct<short>(bytes.Array, bytes.Offset + SaHdrLengthOffset + i * 2);
             }
 
-            var fieldOffset = layout.GetOffset(attr, varSizes);
-            fieldOffset += saHeader.hdrsz;
+            foreach (var ent in layout.GetEntries(varSizes))
+            {
+                dicret.Add(ent.Attr, bytes.SubSegment(ent.Offset + saHeader.hdrsz, ent.Size));
+            }
 
-            var fieldSize = layout.GetFieldSize(attr, varSizes);
-            ret = bytes.SubSegment(fieldOffset, fieldSize);
-            return true;
+            pool.Return(varSizes);
+        }
+
+        struct SaLayoutEntry
+        {
+            public SaLayoutEntry(zpl_attr_t attr, int offset, int size)
+            {
+                this.Attr = attr;
+                this.Offset = offset;
+                this.Size = size;
+            }
+            public zpl_attr_t Attr;
+            public int Offset;
+            public int Size;
         }
 
         class SaLayout
         {
-            private Dictionary<zpl_attr_t, int> mVarSizeOffset = new Dictionary<zpl_attr_t, int>();
-            private Dictionary<zpl_attr_t, int> mSizes;
-            private zpl_attr_t[] mLayout;
-            private int mNumberOfVariableSizedFields;
+            readonly zpl_attr_t[] mLayout;
+            readonly int[] mSizes;
+            readonly int mNumberOfVariableSizedFields;
 
             public SaLayout(Dictionary<zpl_attr_t, int> sizes, zpl_attr_t[] layout)
             {
-                mSizes = sizes;
                 mLayout = layout;
-                mNumberOfVariableSizedFields = layout.Select(attr => sizes[attr]).Count(size => size == 0);
-
-                var varSizeFields = mLayout.Where(a => sizes[a] == 0).ToArray();
-                for (int i = 0; i < varSizeFields.Length; i++)
+                mSizes = new int[layout.Length];
+                mNumberOfVariableSizedFields = 0;
+                for (int i = 0; i < layout.Length; i++)
                 {
-                    mVarSizeOffset[varSizeFields[i]] = i;
+                    int size = sizes[layout[i]];
+                    if (size == 0)
+                        mNumberOfVariableSizedFields++;
+                    else
+                        mSizes[i] = size;
                 }
             }
 
@@ -221,40 +246,23 @@ namespace ZfsSharp
                 get { return mNumberOfVariableSizedFields; }
             }
 
-            public int GetOffset(zpl_attr_t attrToGet, short[] variableFieldSizes)
+            public IEnumerable<SaLayoutEntry> GetEntries(short[] variableFieldSizes)
             {
-                if (variableFieldSizes.Length != mNumberOfVariableSizedFields)
-                    throw new ArgumentOutOfRangeException();
+                if (variableFieldSizes.Length < mNumberOfVariableSizedFields)
+                    throw new ArgumentOutOfRangeException(nameof(variableFieldSizes));
                 int fieldOffset = 0;
                 int varSizeOffset = 0;
                 for (int fieldNdx = 0; fieldNdx < mLayout.Length; fieldNdx++)
                 {
                     var attr = mLayout[fieldNdx];
-                    if (attr == attrToGet)
-                        return fieldOffset;
-                    int fieldSize = mSizes[attr];
+                    int fieldSize = mSizes[fieldNdx];
                     if (fieldSize == 0)
                         fieldSize = variableFieldSizes[varSizeOffset++];
+
+                    yield return new SaLayoutEntry(attr, fieldOffset, fieldSize);
+
                     fieldOffset += fieldSize;
                 }
-                throw new ArgumentOutOfRangeException();
-            }
-
-            public int GetFieldSize(zpl_attr_t attrToGet, short[] variableFieldSizes)
-            {
-                if (variableFieldSizes.Length != mNumberOfVariableSizedFields)
-                    throw new ArgumentOutOfRangeException();
-                var size = mSizes[attrToGet];
-                if (size == 0)
-                {
-                    size = variableFieldSizes[mVarSizeOffset[attrToGet]];
-                }
-                return size;
-            }
-
-            public bool ContainsAttr(zpl_attr_t attr)
-            {
-                return mLayout.Any(a => a == attr);
             }
         }
 
@@ -265,7 +273,7 @@ namespace ZfsSharp
             protected readonly Zpl mZpl;
             internal readonly DNode mDn;
             protected readonly long mMode;
-            internal ZfsItem(Zpl zpl, ZfsDirectory parent, string name, DNode dn)
+            internal ZfsItem(Zpl zpl, ZfsDirectory parent, string name, DNode dn, SaAttributes attrs)
             {
                 this.mZpl = zpl;
                 this.Name = name;
@@ -274,26 +282,19 @@ namespace ZfsSharp
                 if (mDn.Type != DmuType)
                     throw new NotSupportedException();
 
-                mMode = mZpl.GetAttr<long>(mDn, zpl_attr_t.ZPL_MODE);
+                mMode = attrs.Get<long>(zpl_attr_t.ZPL_MODE);
 
-                CTIME = GetDateTime(zpl_attr_t.ZPL_CTIME);
-                MTIME = GetDateTime(zpl_attr_t.ZPL_MTIME);
-                ATIME = GetDateTime(zpl_attr_t.ZPL_ATIME);
+                CTIME = GetDateTime(attrs, zpl_attr_t.ZPL_CTIME);
+                MTIME = GetDateTime(attrs, zpl_attr_t.ZPL_MTIME);
+                ATIME = GetDateTime(attrs, zpl_attr_t.ZPL_ATIME);
             }
 
-            DateTime GetDateTime(zpl_attr_t attr)
+            DateTime GetDateTime(SaAttributes attrs, zpl_attr_t attr)
             {
-                var bytes = mZpl.RentAttrBytes(mDn, attr);
-                try
-                {
-                    ulong seconds = Program.ToStruct<ulong>(bytes.SubSegment(0, sizeof(ulong)));
-                    ulong nanosecs = Program.ToStruct<ulong>(bytes.SubSegment(sizeof(ulong), sizeof(ulong)));
-                    return sEpoc.AddSeconds(seconds).AddTicks((long)(nanosecs / 100));
-                }
-                finally
-                {
-                    Program.ReturnBytes(bytes);
-                }
+                var bytes = attrs.Get(attr);
+                ulong seconds = Program.ToStruct<ulong>(bytes.SubSegment(0, sizeof(ulong)));
+                ulong nanosecs = Program.ToStruct<ulong>(bytes.SubSegment(sizeof(ulong), sizeof(ulong)));
+                return sEpoc.AddSeconds(seconds).AddTicks((long)(nanosecs / 100));
             }
 
             public string Name { get; private set; }
@@ -344,10 +345,10 @@ namespace ZfsSharp
 
         public class ZfsFile : ZfsItem
         {
-            internal ZfsFile(Zpl zpl, ZfsDirectory parent, string name, DNode dn)
-                : base(zpl, parent, name, dn)
+            internal ZfsFile(Zpl zpl, ZfsDirectory parent, string name, DNode dn, SaAttributes attr)
+                : base(zpl, parent, name, dn, attr)
             {
-                Length = mZpl.GetAttr<long>(mDn, zpl_attr_t.ZPL_SIZE);
+                Length = attr.Get<long>(zpl_attr_t.ZPL_SIZE);
             }
 
             public byte[] GetContents()
@@ -381,18 +382,11 @@ namespace ZfsSharp
 
         public class ZfsSymLink : ZfsItem
         {
-            internal ZfsSymLink(Zpl zpl, ZfsDirectory parent, string name, DNode dn)
-                : base(zpl, parent, name, dn)
+            internal ZfsSymLink(Zpl zpl, ZfsDirectory parent, string name, DNode dn, SaAttributes attr)
+                : base(zpl, parent, name, dn, attr)
             {
-                var bytes = zpl.RentAttrBytes(dn, zpl_attr_t.ZPL_SYMLINK);
-                try
-                {
-                    PointsTo = Encoding.ASCII.GetString(bytes.Array, bytes.Offset, bytes.Count);
-                }
-                finally
-                {
-                    Program.ReturnBytes(bytes);
-                }
+                var bytes = attr.Get(zpl_attr_t.ZPL_SYMLINK);
+                PointsTo = Encoding.ASCII.GetString(bytes.Array, bytes.Offset, bytes.Count);
             }
 
             public string PointsTo { get; private set; }
@@ -405,13 +399,13 @@ namespace ZfsSharp
 
         public class ZfsDirectory : ZfsItem
         {
-            internal ZfsDirectory(Zpl zpl, DNode dn)
-                : base(zpl, null, "/", dn)
+            internal ZfsDirectory(Zpl zpl, DNode dn, SaAttributes attr)
+                : base(zpl, null, "/", dn, attr)
             {
                 this.Parent = this;
             }
-            internal ZfsDirectory(Zpl zpl, ZfsDirectory parent, string name, DNode dn)
-                : base(zpl, parent, name, dn)
+            internal ZfsDirectory(Zpl zpl, ZfsDirectory parent, string name, DNode dn, SaAttributes attr)
+                : base(zpl, parent, name, dn, attr)
             {
             }
 
@@ -437,26 +431,32 @@ namespace ZfsSharp
                     long objId = kvp.Value;
                     var dn = mZpl.mZfsObjset.ReadEntry(objId);
 
-                    if (dn.Type == dmu_object_type_t.DIRECTORY_CONTENTS)
-                        yield return new ZfsDirectory(mZpl, this, name, dn);
-                    else if (dn.Type == dmu_object_type_t.PLAIN_FILE_CONTENTS)
+                    using (var saAttrs = this.mZpl.RentAttrBytes(dn))
                     {
-                        var type = mZpl.GetFileType(dn);
-                        if (type == ZfsItemType.S_IFREG)
+                        if (dn.Type == dmu_object_type_t.DIRECTORY_CONTENTS)
+                            yield return new ZfsDirectory(mZpl, this, name, dn, saAttrs);
+                        else if (dn.Type == dmu_object_type_t.PLAIN_FILE_CONTENTS)
                         {
-                            yield return new ZfsFile(mZpl, this, name, dn);
-                        }
-                        else if (type == ZfsItemType.S_IFLNK)
-                        {
-                            yield return new ZfsSymLink(mZpl, this, name, dn);
+                            var type = mZpl.GetFileType(saAttrs);
+                            if (type == ZfsItemType.S_IFREG)
+                            {
+                                yield return new ZfsFile(mZpl, this, name, dn, saAttrs);
+                            }
+                            else if (type == ZfsItemType.S_IFLNK)
+                            {
+                                yield return new ZfsSymLink(mZpl, this, name, dn, saAttrs);
+                            }
+                            else
+                            {
+                                //TODO: other file types
+                            }
                         }
                         else
                         {
-                            //TODO: other file types
+                            throw new NotSupportedException();
                         }
                     }
-                    else
-                        throw new NotSupportedException();
+
                 }
             }
 
