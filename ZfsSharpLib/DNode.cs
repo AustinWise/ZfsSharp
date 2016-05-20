@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace ZfsSharp
@@ -13,6 +12,9 @@ namespace ZfsSharp
 
         public DNode(Zio zio, dnode_phys_t phys)
         {
+            if (phys.NLevels == 0)
+                throw new ArgumentOutOfRangeException(nameof(phys), "Expect dnode's NLevels to be > 0");
+
             mZio = zio;
             mGetBlockKey = getBlockKey;
             mReadBlock = readBlock;
@@ -187,28 +189,28 @@ namespace ZfsSharp
         {
             int indirBlockShift = mPhys.IndirectBlockShift - blkptr_t.SPA_BLKPTRSHIFT;
             int indirMask = (1 << indirBlockShift) - 1;
+            int indirSize = 1 << mPhys.IndirectBlockShift;
 
-            var indirOffsets = new Stack<int>(mPhys.NLevels);
+            blkptr_t ptr = default(blkptr_t);
+
             for (int i = 0; i < mPhys.NLevels; i++)
             {
-                indirOffsets.Push((int)(blockId & indirMask));
-                blockId >>= indirBlockShift;
-            }
-
-            blkptr_t ptr = mPhys.GetBlkptr(indirOffsets.Pop());
-
-            if (indirOffsets.Count != 0)
-            {
-                int indirSize = 1 << mPhys.IndirectBlockShift;
-                var indirBlock = Program.RentBytes(indirSize);
-                while (indirOffsets.Count != 0 && !ptr.IsHole)
+                int indirectNdx = (int)(blockId >> ((mPhys.NLevels - i - 1) * indirBlockShift)) & indirMask;
+                if (i == 0)
                 {
+                    ptr = mPhys.GetBlkptr(indirectNdx);
+                }
+                else
+                {
+                    var indirBlock = Program.RentBytes(indirSize);
                     mZio.Read(ptr, indirBlock);
-                    var indirectNdx = indirOffsets.Pop();
                     const int BP_SIZE = 1 << blkptr_t.SPA_BLKPTRSHIFT;
                     ptr = Program.ToStruct<blkptr_t>(indirBlock.SubSegment(indirectNdx * BP_SIZE, BP_SIZE));
+                    Program.ReturnBytes(indirBlock);
                 }
-                Program.ReturnBytes(indirBlock);
+
+                if (ptr.IsHole)
+                    break;
             }
 
             return ptr;
