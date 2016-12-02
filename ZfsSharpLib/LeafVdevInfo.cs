@@ -84,24 +84,12 @@ namespace ZfsSharp
             HDD.Dispose();
         }
 
-        class FileFormatInfo
+        static readonly Dictionary<string, Func<FileHardDisk, HardDisk>> sFileFormats = new Dictionary<string, Func<FileHardDisk, HardDisk>>(StringComparer.OrdinalIgnoreCase)
         {
-            public FileFormatInfo(string fileExt, Func<FileHardDisk, HardDisk> findZfsPart)
-            {
-                this.FileExtension = fileExt;
-                this.FindZfsPartition = findZfsPart;
-            }
-
-            public string FileExtension { get; }
-            public Func<FileHardDisk, HardDisk> FindZfsPartition { get; }
-        }
-
-        static readonly List<FileFormatInfo> sFileFormats = new List<FileFormatInfo>()
-        {
-            new FileFormatInfo("vhd",  fileHdd => new GptHardDrive(VhdHardDisk.Create(fileHdd))),
-            new FileFormatInfo("vhdx", fileHdd => new GptHardDrive(new VhdxHardDisk(fileHdd))),
-            new FileFormatInfo("vdi",  fileHdd => new GptHardDrive(new VdiHardDisk(fileHdd))),
-            new FileFormatInfo("zfs",  fileHdd => fileHdd),
+            { ".vhd",  fileHdd => new GptHardDrive(VhdHardDisk.Create(fileHdd)) },
+            { ".vhdx", fileHdd => new GptHardDrive(new VhdxHardDisk(fileHdd)) },
+            { ".vdi",  fileHdd => new GptHardDrive(new VdiHardDisk(fileHdd)) },
+            { ".zfs",  fileHdd => fileHdd },
         };
 
         public static List<LeafVdevInfo> GetLeafVdevs(string dir)
@@ -110,15 +98,16 @@ namespace ZfsSharp
 
             try
             {
-                foreach (var fileFormat in sFileFormats)
+                foreach (var fi in new DirectoryInfo(dir).GetFiles())
                 {
-                    foreach (var fi in new DirectoryInfo(dir).GetFiles("*." + fileFormat.FileExtension))
-                    {
-                        var file = new FileHardDisk(fi.FullName);
-                        var partition = fileFormat.FindZfsPartition(file);
-                        var vdev = new LeafVdevInfo(partition);
-                        ret.Add(vdev);
-                    }
+                    Func<FileHardDisk, HardDisk> factory;
+                    if (!sFileFormats.TryGetValue(fi.Extension, out factory))
+                        continue;
+
+                    var file = new FileHardDisk(fi.FullName);
+                    var partition = factory(file);
+                    var vdev = new LeafVdevInfo(partition);
+                    ret.Add(vdev);
                 }
             }
             catch
