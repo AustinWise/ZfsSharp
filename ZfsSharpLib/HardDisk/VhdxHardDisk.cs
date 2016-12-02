@@ -103,7 +103,7 @@ namespace ZfsSharp.HardDisks
             public UInt32 BlockSize;
             UInt32 flags;
             public bool LeaveBlocksAllocated => (flags & 0x1) != 0;
-            public bool HasParent => (flags & 0x1) != 0;
+            public bool HasParent => (flags & 0x2) != 0;
         }
 
         enum PayloadBlockState
@@ -167,7 +167,7 @@ namespace ZfsSharp.HardDisks
                 int fileOffsetsNdx = 0;
                 for (int i = 0; i < totalBatEntries; i++)
                 {
-                    var isSectorBitmap = i != 0 && i % chunkRatio == 0;
+                    var isSectorBitmap = i % (chunkRatio + 1) == chunkRatio;
                     var entry = Program.ToStruct<VHDX_BAT_ENTRY>(batBytes, i * Program.SizeOf<VHDX_BAT_ENTRY>());
                     if (isSectorBitmap)
                     {
