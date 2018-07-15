@@ -7,3 +7,5 @@ TestResults
 packages
 *.psess
 *.vsp
+.vs/
+*.vspx
