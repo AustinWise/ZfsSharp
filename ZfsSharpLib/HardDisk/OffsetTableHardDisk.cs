@@ -38,9 +38,9 @@ namespace ZfsSharp
             mHdd.Dispose();
         }
 
-        public override void ReadBytes(ArraySegment<byte> dest, long offset)
+        public override void ReadBytes(Span<byte> dest, long offset)
         {
-            CheckOffsets(offset, dest.Count);
+            CheckOffsets(offset, dest.Length);
             Program.MultiBlockCopy<long>(dest, offset, mBlockSize, mGetBlockKey, mReadBlock);
         }
 
@@ -49,11 +49,11 @@ namespace ZfsSharp
             return mBlockOffsets[blockId];
         }
 
-        void readBlock(ArraySegment<byte> array, long blockOffset, int blockStartNdx)
+        void readBlock(Span<byte> array, long blockOffset, int blockStartNdx)
         {
             if (blockOffset == -1)
             {
-                array.ZeroMemory();
+                array.Fill(0);
             }
             else
             {

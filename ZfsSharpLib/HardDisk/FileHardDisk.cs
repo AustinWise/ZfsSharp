@@ -4,28 +4,26 @@ using System.IO.MemoryMappedFiles;
 
 namespace ZfsSharp.HardDisks
 {
-    class FileHardDisk : HardDisk
+    unsafe class FileHardDisk : HardDisk
     {
         private MemoryMappedFile mFile;
+        private MemoryMappedViewAccessor mViewAcessor;
+        private byte* mPointer;
         private long mSize;
 
         public FileHardDisk(string path)
         {
-            var fi = new FileInfo(path);
-            mSize = fi.Length;
-
             mFile = MemoryMappedFile.CreateFromFile(path, FileMode.Open);
+            mViewAcessor = mFile.CreateViewAccessor();
+            mSize = mViewAcessor.Capacity;
+            mPointer = null;
+            mViewAcessor.SafeMemoryMappedViewHandle.AcquirePointer(ref mPointer);
         }
 
-        public override void ReadBytes(ArraySegment<byte> dest, long offset)
+        public override void ReadBytes(Span<byte> dest, long offset)
         {
-            CheckOffsets(offset, dest.Count);
-            using (var s = mFile.CreateViewStream(offset, dest.Count, MemoryMappedFileAccess.Read))
-            {
-                var rc = s.Read(dest.Array, dest.Offset, dest.Count);
-                if (rc != dest.Count)
-                    throw new IOException("Not enough bytes read.");
-            }
+            CheckOffsets(offset, dest.Length);
+            new Span<byte>(mPointer + offset, dest.Length).CopyTo(dest);
         }
 
         public override long Length
@@ -35,6 +33,8 @@ namespace ZfsSharp.HardDisks
 
         public override void Dispose()
         {
+            mViewAcessor.SafeMemoryMappedViewHandle.ReleasePointer();
+            mViewAcessor.Dispose();
             mFile.Dispose();
         }
     }

@@ -42,11 +42,11 @@ namespace ZfsSharp
         public byte[] ReadBytes(long offset, int count)
         {
             var ret = new byte[count];
-            ReadBytes(new ArraySegment<byte>(ret, 0, count), offset);
+            ReadBytes(new Span<byte>(ret), offset);
             return ret;
         }
 
-        public abstract void ReadBytes(ArraySegment<byte> dest, long offset);
+        public abstract void ReadBytes(Span<byte> dest, long offset);
 
         public abstract long Length
         {

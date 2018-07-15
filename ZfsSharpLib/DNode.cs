@@ -167,12 +167,12 @@ namespace ZfsSharp
             Program.MultiBlockCopy<blkptr_t>(dest, offset, mPhys.BlockSizeInBytes, mGetBlockKey, mReadBlock);
         }
 
-        private void readBlock(ArraySegment<byte> dest, blkptr_t blkptr, int startNdx)
+        private void readBlock(Span<byte> dest, blkptr_t blkptr, int startNdx)
         {
             if (blkptr.IsHole)
                 return;
             int logicalBlockSize = blkptr.LogicalSizeBytes;
-            if (logicalBlockSize == dest.Count)
+            if (logicalBlockSize == dest.Length)
             {
                 mZio.Read(blkptr, dest);
             }
@@ -180,7 +180,7 @@ namespace ZfsSharp
             {
                 var src = Program.RentBytes(logicalBlockSize);
                 mZio.Read(blkptr, src);
-                Buffer.BlockCopy(src.Array, src.Offset + startNdx, dest.Array, dest.Offset, dest.Count);
+                new Span<byte>(src.Array, src.Offset + startNdx, dest.Length).CopyTo(dest);
                 Program.ReturnBytes(src);
             }
         }

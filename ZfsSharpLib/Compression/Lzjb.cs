@@ -12,13 +12,13 @@ namespace ZfsSharp
         const int OFFSET_MASK = ((1 << (16 - MATCH_BITS)) - 1);
         const int LEMPEL_SIZE = 1024;
 
-        public unsafe void Decompress(ArraySegment<byte> input, ArraySegment<byte> output)
+        public unsafe void Decompress(Span<byte> input, Span<byte> output)
         {
-            fixed (byte* s_start = input.Array)
+            fixed (byte* s_start = input)
             {
-                fixed (byte* d_start = output.Array)
+                fixed (byte* d_start = output)
                 {
-                    int ret = lzjb_decompress(s_start + input.Offset, d_start + output.Offset, input.Count, output.Count, 0);
+                    int ret = lzjb_decompress(s_start, d_start, input.Length, output.Length, 0);
                     if (ret != 0)
                         throw new Exception($"LZJB failed to decompress: {ret}");
                 }

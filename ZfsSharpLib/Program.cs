@@ -134,7 +134,7 @@ namespace ZfsSharp
         /// <param name="dest">The place to store the read data.</param>
         /// <param name="blockKey">An identifier for the block.</param>
         /// <param name="startNdx">The offset within the block to start reading from.</param>
-        public delegate void BlockReader<T>(ArraySegment<byte> dest, T blockKey, int startNdx);
+        public delegate void BlockReader<T>(Span<byte> dest, T blockKey, int startNdx);
 
         static long roundup(long x, long y)
         {
@@ -155,7 +155,7 @@ namespace ZfsSharp
         /// <param name="blockSize">The size of the blocks.</param>
         /// <param name="GetBlockKey">Given a block offset returns a key for reading that block.</param>
         /// <param name="ReadBlock">Given a block key, reads the block.</param>
-        public static void MultiBlockCopy<T>(ArraySegment<byte> dest, long offset, int blockSize, Func<long, T> GetBlockKey, BlockReader<T> ReadBlock)
+        public static void MultiBlockCopy<T>(Span<byte> dest, long offset, int blockSize, Func<long, T> GetBlockKey, BlockReader<T> ReadBlock)
         {
             if (offset < 0)
                 throw new ArgumentOutOfRangeException("offset");
@@ -163,9 +163,9 @@ namespace ZfsSharp
                 throw new ArgumentOutOfRangeException("blockSize");
 
             long firstBlock = offset / blockSize;
-            int numBlocks = (int)((roundup(offset + dest.Count, blockSize) - rounddown(offset, blockSize)) / blockSize);
+            int numBlocks = (int)((roundup(offset + dest.Length, blockSize) - rounddown(offset, blockSize)) / blockSize);
 
-            int remaingBytes = dest.Count;
+            int remaingBytes = dest.Length;
             int destOffset = 0;
             for (int i = 0; i < numBlocks; i++)
             {
@@ -173,7 +173,7 @@ namespace ZfsSharp
                 int size = Math.Min(remaingBytes, blockSize - blockOffset);
 
                 var key = GetBlockKey(firstBlock + i);
-                ReadBlock(dest.SubSegment(destOffset, size), key, blockOffset);
+                ReadBlock(dest.Slice(destOffset, size), key, blockOffset);
 
                 destOffset += size;
                 offset += size;

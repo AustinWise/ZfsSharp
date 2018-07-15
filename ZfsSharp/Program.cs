@@ -10,15 +10,19 @@ namespace ZfsSharp
     {
         static void Main(string[] args)
         {
-            //args = new string[] { @"C:\VPC\SmartOs\" };
+            args = new string[] { @"C:\temp\" };
             if (args.Length == 0)
             {
                 Console.WriteLine("Usage: ZfsSharp.exe <a directory containing VHD, VDI, or ZFS files>");
                 return;
             }
 
+            var sw = Stopwatch.StartNew();
+            sw.Stop();
+
             using (var zfs = new Zfs(args[0]))
             {
+                sw = Stopwatch.StartNew();
                 foreach (var ds in zfs.GetDataSets())
                 {
                     Console.WriteLine("{0}: {1}", ds.Type, ds.Name);
@@ -39,6 +43,8 @@ namespace ZfsSharp
                         printContent(snapName, snap.Value.Root);
                     }
                 }
+                sw.Stop();
+                Console.WriteLine("time: " + sw.ElapsedMilliseconds);
             }
 
             Console.WriteLine();
@@ -82,7 +88,7 @@ namespace ZfsSharp
 
         static void printContent(string namePrefix, Zpl.ZfsItem item)
         {
-            Console.WriteLine(namePrefix + item.FullPath);
+            //Console.WriteLine(namePrefix + item.FullPath);
             var dir = item as Zpl.ZfsDirectory;
             var file = item as Zpl.ZfsFile;
 

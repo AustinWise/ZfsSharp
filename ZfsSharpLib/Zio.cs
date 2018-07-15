@@ -71,7 +71,7 @@ namespace ZfsSharp
             }
         }
 
-        unsafe void ReadEmbedded(blkptr_t blkptr, ArraySegment<byte> dest)
+        unsafe void ReadEmbedded(blkptr_t blkptr, Span<byte> dest)
         {
             if (blkptr.EmbedType != EmbeddedType.Data)
                 throw new Exception("Unsupported embedded type: " + blkptr.EmbedType);
@@ -110,13 +110,18 @@ namespace ZfsSharp
 
         public void Read(blkptr_t blkptr, ArraySegment<byte> dest)
         {
+            Read(blkptr, (Span<byte>)dest);
+        }
+
+        public void Read(blkptr_t blkptr, Span<byte> dest)
+        {
             if (blkptr.birth == 0)
                 throw new NotSupportedException("Invalid block pointer: 0 birth txg.");
             if (blkptr.IsHole)
                 throw new Exception("Block pointer is a hole.");
             if (blkptr.IsLittleEndian != BitConverter.IsLittleEndian)
                 throw new NotImplementedException("Byte swapping not implemented.");
-            if (blkptr.LogicalSizeBytes != dest.Count)
+            if (blkptr.LogicalSizeBytes != dest.Length)
                 throw new ArgumentOutOfRangeException("dest", "Dest does not match logical size of block pointer.");
 
             if (blkptr.IsEmbedded)
@@ -170,7 +175,7 @@ namespace ZfsSharp
 
             var gangHeader = Program.ToStruct<zio_gbh_phys_t>(hddBytes);
 
-            bool isChecksumValid = IsEmbeddedChecksumValid(hddBytes, CalculateGangChecksumVerifier(ref blkptr));                
+            bool isChecksumValid = IsEmbeddedChecksumValid(hddBytes, CalculateGangChecksumVerifier(ref blkptr));
 
             Program.ReturnBytes(hddBytes);
             hddBytes = default(ArraySegment<byte>);
@@ -194,7 +199,7 @@ namespace ZfsSharp
             return physicalBytes;
         }
 
-        private void Read(blkptr_t blkptr, dva_t dva, ArraySegment<byte> dest)
+        private void Read(blkptr_t blkptr, dva_t dva, Span<byte> dest)
         {
             if (dva.IsGang && blkptr.Compress != zio_compress.OFF)
             {
@@ -241,6 +246,6 @@ namespace ZfsSharp
 
     interface ICompression
     {
-        void Decompress(ArraySegment<byte> input, ArraySegment<byte> output);
+        void Decompress(Span<byte> input, Span<byte> output);
     }
 }

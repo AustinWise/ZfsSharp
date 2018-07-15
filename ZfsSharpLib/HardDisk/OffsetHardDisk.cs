@@ -40,9 +40,9 @@ namespace ZfsSharp.HardDisks
             mSize = size;
         }
 
-        public override void ReadBytes(ArraySegment<byte> dest, long offset)
+        public override void ReadBytes(Span<byte> dest, long offset)
         {
-            CheckOffsets(offset, dest.Count);
+            CheckOffsets(offset, dest.Length);
             mHdd.ReadBytes(dest, mOffset + offset);
         }
 
