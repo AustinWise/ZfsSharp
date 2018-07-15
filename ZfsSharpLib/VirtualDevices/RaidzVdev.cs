@@ -24,16 +24,16 @@ namespace ZfsSharp.VirtualDevices
             mUnitShift = (int)config.Get<UInt64>("ashift");
         }
 
-        protected override void ReadBytesCore(ArraySegment<byte> dest, long offset)
+        protected override void ReadBytesCore(Span<byte> dest, long offset)
         {
-            var rm = vdev_raidz_map_alloc((ulong)dest.Count, (ulong)offset, mUnitShift, (ulong)mVdevs.Length, mNparity);
+            var rm = vdev_raidz_map_alloc((ulong)dest.Length, (ulong)offset, mUnitShift, (ulong)mVdevs.Length, mNparity);
             int ptr = 0;
             for (ulong i = rm.rm_firstdatacol; i < rm.rm_cols; i++)
             {
                 var col = rm.rm_col[i];
                 if (col.rc_size > int.MaxValue)
                     throw new NotSupportedException("RaidZ column too big.");
-                mVdevs[col.rc_devidx].ReadBytes(dest.SubSegment(0, (int)col.rc_size), (long)col.rc_offset);
+                mVdevs[col.rc_devidx].ReadBytes(dest.Slice(0, (int)col.rc_size), (long)col.rc_offset);
                 ptr += (int)col.rc_size;
             }
         }

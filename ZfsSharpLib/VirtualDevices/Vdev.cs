@@ -26,16 +26,16 @@ namespace ZfsSharp.VirtualDevices
             mMetaSlabs = new MetaSlabs(mos, (long)MetaSlabArray.Value, (int)MetaSlabShift.Value, (int)AShift.Value);
         }
 
-        public void ReadBytes(ArraySegment<byte> dest, long offset)
+        public void ReadBytes(Span<byte> dest, long offset)
         {
-            if (mMetaSlabs != null && !mMetaSlabs.ContainsRange(offset, dest.Count))
+            if (mMetaSlabs != null && !mMetaSlabs.ContainsRange(offset, dest.Length))
             {
                 throw new Exception("Reading unallocated data.");
             }
             ReadBytesCore(dest, offset);
         }
 
-        protected abstract void ReadBytesCore(ArraySegment<byte> dest, long offset);
+        protected abstract void ReadBytesCore(Span<byte> dest, long offset);
 
         public ulong Guid
         {

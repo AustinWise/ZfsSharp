@@ -108,7 +108,7 @@ namespace ZfsSharp
             }
         }
 
-        public void ReadSpill(ArraySegment<byte> dest)
+        public void ReadSpill(Span<byte> dest)
         {
             if ((mPhys.Flags & DnodeFlags.SpillBlkptr) == 0)
             {
@@ -154,14 +154,19 @@ namespace ZfsSharp
 
         public void Read(byte[] buffer, long offset, int size)
         {
-            Read(new ArraySegment<byte>(buffer, 0, size), offset);
+            Read(new Span<byte>(buffer, 0, size), offset);
         }
 
         public void Read(ArraySegment<byte> dest, long offset)
         {
-            if (offset < 0 || dest.Count < 0)
+            Read((Span<byte>)dest, offset);
+        }
+
+        public void Read(Span<byte> dest, long offset)
+        {
+            if (offset < 0 || dest.Length < 0)
                 throw new ArgumentOutOfRangeException();
-            if ((offset + dest.Count) > mPhys.AvailableDataSize)
+            if ((offset + dest.Length) > mPhys.AvailableDataSize)
                 throw new ArgumentOutOfRangeException();
 
             Program.MultiBlockCopy<blkptr_t>(dest, offset, mPhys.BlockSizeInBytes, mGetBlockKey, mReadBlock);
@@ -202,11 +207,12 @@ namespace ZfsSharp
                 }
                 else
                 {
-                    var indirBlock = Program.RentBytes(indirSize);
+                    var indirBlockRent = Program.RentBytes(indirSize);
+                    Span<byte> indirBlock = indirBlockRent;
                     mZio.Read(ptr, indirBlock);
                     const int BP_SIZE = 1 << blkptr_t.SPA_BLKPTRSHIFT;
-                    ptr = Program.ToStruct<blkptr_t>(indirBlock.SubSegment(indirectNdx * BP_SIZE, BP_SIZE));
-                    Program.ReturnBytes(indirBlock);
+                    ptr = Program.ToStruct<blkptr_t>(indirBlock.Slice(indirectNdx * BP_SIZE, BP_SIZE));
+                    Program.ReturnBytes(indirBlockRent);
                 }
 
                 if (ptr.IsHole)

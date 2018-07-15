@@ -59,6 +59,13 @@ namespace ZfsSharp
             return ToStruct<T>(bytes.Array, bytes.Offset);
         }
 
+        public static T ToStruct<T>(Span<byte> bytes) where T : struct
+        {
+            if (Unsafe.SizeOf<T>() != bytes.Length)
+                throw new ArgumentOutOfRangeException();
+            return MemoryMarshal.Cast<byte, T>(bytes)[0];
+        }
+
         public unsafe static T ToStruct<T>(byte* ptr, long offset, long ptrLength) where T : struct
         {
             if (offset < 0 || ptrLength <= 0)

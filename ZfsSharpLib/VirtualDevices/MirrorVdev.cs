@@ -16,7 +16,7 @@ namespace ZfsSharp.VirtualDevices
                 .ToArray();
         }
 
-        protected override void ReadBytesCore(ArraySegment<byte> dest, long offset)
+        protected override void ReadBytesCore(Span<byte> dest, long offset)
         {
             //TODO: use more than one child
             mVdevs[0].ReadBytes(dest, offset);
