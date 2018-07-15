@@ -303,12 +303,15 @@ namespace ZfsSharp
         /// Includes indirect blocks.
         /// </summary>
         /// <returns></returns>
-        public long DN_USED_BYTES()
+        public long DN_USED_BYTES
         {
-            if ((this.Flags & DnodeFlags.UsedBytes) == 0)
-                return this.Used << Program.SPA_MINBLOCKSHIFT;
-            else
-                return this.Used;
+            get
+            {
+                if ((this.Flags & DnodeFlags.UsedBytes) == 0)
+                    return this.Used << Program.SPA_MINBLOCKSHIFT;
+                else
+                    return this.Used;
+            }
         }
     }
 }
