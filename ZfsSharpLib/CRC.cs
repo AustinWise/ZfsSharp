@@ -8,13 +8,13 @@
 
 namespace Crc32C
 {
-	internal class SafeProxy : BaseProxy
+	static class CRC
 	{
 		private const uint Poly = 0x82f63b78;
 
 		private static readonly uint[] _table = new uint[16 * 256];
 
-		static SafeProxy()
+		static CRC()
 		{
 			uint[] table = _table;
 			for (uint i = 0; i < 256; i++)
@@ -28,7 +28,12 @@ namespace Crc32C
 			}
 		}
 
-		public override uint Append(uint crc, byte[] input, int offset, int length)
+        public static uint Compute(byte[] bytes)
+        {
+            return Append(0, bytes, 0, bytes.Length);
+        }
+
+        static uint Append(uint crc, byte[] input, int offset, int length)
 		{
 			uint crcLocal = uint.MaxValue ^ crc;
 

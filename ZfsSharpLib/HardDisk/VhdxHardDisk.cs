@@ -1,12 +1,8 @@
 ﻿using Crc32C;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ZfsSharp.HardDisks
 {
@@ -282,7 +278,7 @@ namespace ZfsSharp.HardDisks
             {
                 regionTableBytes[i + 4] = 0;
             }
-            if (regionTable.Checksum != Crc32CAlgorithm.Compute(regionTableBytes))
+            if (regionTable.Checksum != CRC.Compute(regionTableBytes))
                 throw new Exception("Bad region table checksum!");
             if (regionTable.EntryCount > 2047)
                 throw new Exception("Too many region table entries!");
@@ -320,7 +316,7 @@ namespace ZfsSharp.HardDisks
             {
                 bytes[i + 4] = 0;
             }
-            if (checksum != Crc32CAlgorithm.Compute(bytes))
+            if (checksum != CRC.Compute(bytes))
                 return;
 
             headerList.Add(Program.ToStruct<VHDX_HEADER>(bytes));
