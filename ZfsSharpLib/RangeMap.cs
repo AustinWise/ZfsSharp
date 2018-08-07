@@ -1,11 +1,31 @@
 ﻿using System;
 using System.DataStructures;
+using System.Diagnostics;
 
 namespace ZfsSharp
 {
     class RangeMap
     {
         private readonly AvlTree<SpaceRange> mTree = new AvlTree<SpaceRange>();
+
+#if DEBUG
+        static RangeMap()
+        {
+            var space = new SpaceRange(100, 100);
+
+            Debug.Assert(space.Intersects(new SpaceRange(150, 25)));
+            Debug.Assert(space.Intersects(new SpaceRange(100, 25)));
+            Debug.Assert(space.Intersects(new SpaceRange(50, 200)));
+            Debug.Assert(space.Intersects(new SpaceRange(190, 10)));
+
+            Debug.Assert(space.Intersects(new SpaceRange(90, 20)));
+            Debug.Assert(space.Intersects(new SpaceRange(190, 20)));
+
+            Debug.Assert(!space.Intersects(new SpaceRange(50, 25)));
+            Debug.Assert(!space.Intersects(new SpaceRange(90, 10)));
+            Debug.Assert(!space.Intersects(new SpaceRange(200, 10)));
+        }
+#endif
 
         public RangeMap()
         {
@@ -163,26 +183,6 @@ namespace ZfsSharp
             public override string ToString()
             {
                 return string.Format("{{ {0:x}, {1:x} }}", Offset, Range);
-            }
-
-            private static void TestIntersects()
-            {
-                var space = new SpaceRange(100, 100);
-
-                Console.WriteLine("should be true:");
-                Console.WriteLine(space.Intersects(new SpaceRange(150, 25)));
-                Console.WriteLine(space.Intersects(new SpaceRange(100, 25)));
-                Console.WriteLine(space.Intersects(new SpaceRange(50, 200)));
-                Console.WriteLine(space.Intersects(new SpaceRange(190, 10)));
-
-                Console.WriteLine(space.Intersects(new SpaceRange(90, 20)));
-                Console.WriteLine(space.Intersects(new SpaceRange(190, 20)));
-
-                Console.WriteLine();
-                Console.WriteLine("should be false:");
-                Console.WriteLine(space.Intersects(new SpaceRange(50, 25)));
-                Console.WriteLine(space.Intersects(new SpaceRange(90, 10)));
-                Console.WriteLine(space.Intersects(new SpaceRange(200, 10)));
             }
         }
     }
