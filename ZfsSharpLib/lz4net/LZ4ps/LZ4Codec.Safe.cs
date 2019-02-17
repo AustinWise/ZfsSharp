@@ -175,45 +175,9 @@ namespace LZ4ps
 			Assert(src != dst, "BlockCopy does not handle copying to the same buffer");
 			Assert(len > 0, "Length have to be greater than 0");
 
-			if (len >= BLOCK_COPY_LIMIT)
-			{
-                src.Slice(src_0, len).CopyTo(dst.Slice(dst_0));
-			}
-			else
-			{
-				// apparently (tested) this is an overkill
-				// it seems to be faster without this 8-byte loop
-				//while (len >= 8)
-				//{
-				//	dst[dst_0] = src[src_0];
-				//	dst[dst_0 + 1] = src[src_0 + 1];
-				//	dst[dst_0 + 2] = src[src_0 + 2];
-				//	dst[dst_0 + 3] = src[src_0 + 3];
-				//	dst[dst_0 + 4] = src[src_0 + 4];
-				//	dst[dst_0 + 5] = src[src_0 + 5];
-				//	dst[dst_0 + 6] = src[src_0 + 6];
-				//	dst[dst_0 + 7] = src[src_0 + 7];
-				//	len -= 8; src_0 += 8; dst_0 += 8;
-				//}
+            src.Slice(src_0, len).CopyTo(dst.Slice(dst_0));
 
-				while (len >= 4)
-				{
-					dst[dst_0] = src[src_0];
-					dst[dst_0 + 1] = src[src_0 + 1];
-					dst[dst_0 + 2] = src[src_0 + 2];
-					dst[dst_0 + 3] = src[src_0 + 3];
-					len -= 4;
-					src_0 += 4;
-					dst_0 += 4;
-				}
-
-				while (len-- > 0)
-				{
-					dst[dst_0++] = src[src_0++];
-				}
-			}
-
-			return len;
+            return len;
 		}
 
 		private static int SecureCopy(Span<byte> buffer, int src, int dst, int dst_end)
@@ -226,7 +190,7 @@ namespace LZ4ps
 			Assert(BLOCK_COPY_LIMIT > 4, "This method requires BLOCK_COPY_LIMIT > 4");
 			Assert(len > 0, "Length have to be greater than 0");
 
-			if (diff >= BLOCK_COPY_LIMIT)
+			//if (diff >= BLOCK_COPY_LIMIT)
 			{
 				if (diff >= length)
 				{
