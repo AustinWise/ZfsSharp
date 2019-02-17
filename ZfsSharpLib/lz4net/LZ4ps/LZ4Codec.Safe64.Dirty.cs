@@ -68,6 +68,8 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // ReSharper disable JoinDeclarationAndInitializer
 // ReSharper disable RedundantIfElseBlock
 
+using System;
+
 namespace LZ4ps
 {
 	public static partial class LZ4Codec
@@ -531,8 +533,8 @@ namespace LZ4ps
 		#region LZ4_uncompress
 
 		private static int LZ4_uncompress_safe64(
-			byte[] src,
-			byte[] dst,
+			Span<byte> src,
+            Span<byte> dst,
 			int src_0,
 			int dst_0,
 			int dst_len)
@@ -663,8 +665,8 @@ namespace LZ4ps
 		#region LZ4_uncompress_unknownOutputSize
 
 		private static int LZ4_uncompress_unknownOutputSize_safe64(
-			byte[] src,
-			byte[] dst,
+			Span<byte> src,
+            Span<byte> dst,
 			int src_0,
 			int dst_0,
 			int src_len,

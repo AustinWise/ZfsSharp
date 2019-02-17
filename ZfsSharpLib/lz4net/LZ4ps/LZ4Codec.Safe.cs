@@ -61,7 +61,7 @@ namespace LZ4ps
 			buffer[offset + 1] = (byte)(value >> 8);
 		}
 
-		internal static ushort Peek2(byte[] buffer, int offset)
+		internal static ushort Peek2(Span<byte> buffer, int offset)
 		{
 			// NOTE: It's faster than BitConverter.ToUInt16 (suprised? me too)
 			return (ushort)(((uint)buffer[offset]) | ((uint)buffer[offset + 1] << 8));
@@ -139,7 +139,7 @@ namespace LZ4ps
 
 		#region Byte block copy
 
-		private static void Copy4(byte[] buf, int src, int dst)
+		private static void Copy4(Span<byte> buf, int src, int dst)
 		{
 			Assert(dst > src, "Copying backwards is not implemented");
 			buf[dst + 3] = buf[src + 3];
@@ -148,7 +148,7 @@ namespace LZ4ps
 			buf[dst] = buf[src];
 		}
 
-		private static void Copy8(byte[] buf, int src, int dst)
+		private static void Copy8(Span<byte> buf, int src, int dst)
 		{
 			Assert(dst > src, "Copying backwards is not implemented");
 			buf[dst + 7] = buf[src + 7];
@@ -161,50 +161,14 @@ namespace LZ4ps
 			buf[dst] = buf[src];
 		}
 
-		private static void BlockCopy(byte[] src, int src_0, byte[] dst, int dst_0, int len)
+		private static void BlockCopy(Span<byte> src, int src_0, Span<byte> dst, int dst_0, int len)
 		{
 			Assert(src != dst, "BlockCopy does not handle copying to the same buffer");
 
-			if (len >= BLOCK_COPY_LIMIT)
-			{
-				Buffer.BlockCopy(src, src_0, dst, dst_0, len);
-			}
-			else
-			{
-				while (len >= 8)
-				{
-					dst[dst_0] = src[src_0];
-					dst[dst_0 + 1] = src[src_0 + 1];
-					dst[dst_0 + 2] = src[src_0 + 2];
-					dst[dst_0 + 3] = src[src_0 + 3];
-					dst[dst_0 + 4] = src[src_0 + 4];
-					dst[dst_0 + 5] = src[src_0 + 5];
-					dst[dst_0 + 6] = src[src_0 + 6];
-					dst[dst_0 + 7] = src[src_0 + 7];
-					len -= 8;
-					src_0 += 8;
-					dst_0 += 8;
-				}
-
-				while (len >= 4)
-				{
-					dst[dst_0] = src[src_0];
-					dst[dst_0 + 1] = src[src_0 + 1];
-					dst[dst_0 + 2] = src[src_0 + 2];
-					dst[dst_0 + 3] = src[src_0 + 3];
-					len -= 4;
-					src_0 += 4;
-					dst_0 += 4;
-				}
-
-				while (len-- > 0)
-				{
-					dst[dst_0++] = src[src_0++];
-				}
-			}
+            src.Slice(src_0, len).CopyTo(dst.Slice(dst_0));
 		}
 
-		private static int WildCopy(byte[] src, int src_0, byte[] dst, int dst_0, int dst_end)
+		private static int WildCopy(Span<byte> src, int src_0, Span<byte> dst, int dst_0, int dst_end)
 		{
 			var len = dst_end - dst_0;
 
@@ -213,7 +177,7 @@ namespace LZ4ps
 
 			if (len >= BLOCK_COPY_LIMIT)
 			{
-				Buffer.BlockCopy(src, src_0, dst, dst_0, len);
+                src.Slice(src_0, len).CopyTo(dst.Slice(dst_0));
 			}
 			else
 			{
@@ -252,7 +216,7 @@ namespace LZ4ps
 			return len;
 		}
 
-		private static int SecureCopy(byte[] buffer, int src, int dst, int dst_end)
+		private static int SecureCopy(Span<byte> buffer, int src, int dst, int dst_end)
 		{
 			var diff = dst - src;
 			var length = dst_end - dst;
@@ -266,13 +230,13 @@ namespace LZ4ps
 			{
 				if (diff >= length)
 				{
-					Buffer.BlockCopy(buffer, src, buffer, dst, length);
+                    buffer.Slice(src, length).CopyTo(buffer.Slice(dst));
 					return length; // done
 				}
 
 				do
-				{
-					Buffer.BlockCopy(buffer, src, buffer, dst, diff);
+                {
+                    buffer.Slice(src, diff).CopyTo(buffer.Slice(dst));
 					src += diff;
 					dst += diff;
 					len -= diff;
@@ -520,10 +484,10 @@ namespace LZ4ps
 		/// <param name="knownOutputLength">Set it to <c>true</c> if output length is known.</param>
 		/// <returns>Number of bytes written.</returns>
 		public static int Decode64(
-			byte[] input,
+			Span<byte> input,
 			int inputOffset,
 			int inputLength,
-			byte[] output,
+            Span<byte> output,
 			int outputOffset,
 			int outputLength,
 			bool knownOutputLength)

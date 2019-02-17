@@ -149,8 +149,8 @@ namespace LZ4ps
 		#region internal interface (common)
 
 		internal static void CheckArguments(
-			byte[] input, int inputOffset, ref int inputLength,
-			byte[] output, int outputOffset, ref int outputLength)
+            Span<byte> input, int inputOffset, ref int inputLength,
+            Span<byte> output, int outputOffset, ref int outputLength)
 		{
 			if (inputLength < 0) inputLength = input.Length - inputOffset;
 			if (inputLength == 0)
