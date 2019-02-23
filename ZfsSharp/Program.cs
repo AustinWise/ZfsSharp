@@ -10,10 +10,9 @@ namespace ZfsSharp
     {
         static void Main(string[] args)
         {
-            args = new string[] { @"C:\temp\" };
             if (args.Length == 0)
             {
-                Console.WriteLine("Usage: ZfsSharp.exe <a directory containing VHD, VDI, or ZFS files>");
+                Console.WriteLine("Usage: ZfsSharp.exe <a directory containing VHD, VHDX, VDI, or ZFS files>");
                 return;
             }
 
