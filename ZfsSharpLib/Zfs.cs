@@ -34,13 +34,13 @@ namespace ZfsSharp
         }
 
         /// <summary></summary>
-        /// <param name="directory">A directory containing virtual hard disk files.</param>
-        public Zfs(string directory)
+        /// <param name="directoryOrFile">Either the path to a virutal hard disk image file or a directory containing multiple images.</param>
+        public Zfs(string directoryOrFile)
         {
             //make sure we correctly set the size of structs
             assertStructSize<zio_gbh_phys_t>(zio_gbh_phys_t.SPA_GANGBLOCKSIZE);
 
-            mHdds = LeafVdevInfo.GetLeafVdevs(directory);
+            mHdds = LeafVdevInfo.GetLeafVdevs(directoryOrFile);
 
             try
             {

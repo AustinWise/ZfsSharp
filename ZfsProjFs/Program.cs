@@ -44,7 +44,7 @@ namespace ZfsProjFs
             string zfsDiskDir = args[0];
             string targetDir = args[1];
 
-            if (!Directory.Exists(zfsDiskDir) || !Directory.Exists(targetDir))
+            if (!(Directory.Exists(zfsDiskDir) || File.Exists(zfsDiskDir)) || !Directory.Exists(targetDir))
             {
                 Console.WriteLine("Both directories must already exist.");
                 Console.WriteLine();

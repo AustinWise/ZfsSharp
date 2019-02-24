@@ -92,13 +92,23 @@ namespace ZfsSharp
             { ".zfs",  fileHdd => fileHdd },
         };
 
-        public static List<LeafVdevInfo> GetLeafVdevs(string dir)
+        public static List<LeafVdevInfo> GetLeafVdevs(string dirOrFile)
         {
             var ret = new List<LeafVdevInfo>();
 
             try
             {
-                foreach (var fi in new DirectoryInfo(dir).GetFiles())
+                FileInfo[] files;
+                if (File.Exists(dirOrFile))
+                {
+                    files = new FileInfo[] { new FileInfo(dirOrFile) };
+                }
+                else
+                {
+                    files = new DirectoryInfo(dirOrFile).GetFiles();
+                }
+
+                foreach (var fi in files)
                 {
                     Func<FileHardDisk, HardDisk> factory;
                     if (!sFileFormats.TryGetValue(fi.Extension, out factory))
