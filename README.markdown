@@ -11,9 +11,10 @@ Mostly to increase my understanding on how ZFS works.  Also to see how hard it w
 Future plans
 ------------
 
-* Port to .NET Core to take better advantage of `Span<byte>`.
 * Replace dokan support with Windows Projected File System so no third party drivers are required.
+  Currently this is a work in progress.
 * Add support for FUSE.
+* Add `async` support to parrelleize checksumming and decompression.
 
 What I'm learning
 -----------------
