@@ -21,11 +21,15 @@ namespace Austin.WindowsProjectedFileSystem
                 FileSize = this.FileSize,
                 IsDirectory = this.IsDirectory,
                 FileAttributes = (uint)this.Attributes,
-                ChangeTime = this.ChangeTime.ToFileTimeUtc(),
-                CreationTime = this.CreationTime.ToFileTimeUtc(),
-                LastAccessTime = this.LastAccessTime.ToFileTimeUtc(),
-                LastWriteTime = this.LastWriteTime.ToFileTimeUtc(),
             };
+            if (this.ChangeTime.Year >= 1601)
+                ret.ChangeTime = this.ChangeTime.ToFileTimeUtc();
+            if (this.CreationTime.Year >= 1601)
+                ret.CreationTime = this.CreationTime.ToFileTimeUtc();
+            if (this.LastAccessTime.Year >= 1601)
+                ret.LastAccessTime = this.LastAccessTime.ToFileTimeUtc();
+            if (this.LastWriteTime.Year >= 1601)
+                ret.LastWriteTime = this.LastWriteTime.ToFileTimeUtc();
             return ret;
         }
     }

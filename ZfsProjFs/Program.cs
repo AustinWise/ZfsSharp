@@ -60,20 +60,7 @@ namespace ZfsProjFs
 
             using (mZfs = new Zfs(zfsDiskDir))
             {
-                //just use the root dataset for now
-                var rootDataset = mZfs.GetRootDataset();
-                var rootDir = rootDataset.GetHeadZfs().Root;
-                var info = new ProjectedItemInfo()
-                {
-                    ZfsItem = rootDir,
-                    ProjectedForm = new FileBasicInfo()
-                    {
-                        IsDirectory = true,
-                        Name = "",
-                    },
-                    FullName = "",
-                };
-                mCache[""] = info;
+                populateDatasets("", mZfs.GetRootDataset());
                 using (mProjFs = new ProjectedFileSystem(targetDir, this))
                 {
                     Console.WriteLine("Start virtualizing in " + targetDir);
@@ -83,6 +70,67 @@ namespace ZfsProjFs
             }
 
             return 0;
+        }
+
+        ProjectedItemInfo populateDatasets(string basePath, DatasetDirectory dsd)
+        {
+            var rootDir = dsd.GetHeadZfs().Root;
+            var info = new ProjectedItemInfo()
+            {
+                ZfsItem = rootDir,
+                ProjectedForm = new FileBasicInfo()
+                {
+                    IsDirectory = true,
+                    Name = dsd.Name,
+                },
+                FullName = basePath,
+            };
+            mCache.Add(info.FullName, info);
+
+            var childItems = getChildren(info.FullName, rootDir);
+
+            var childDatasets = dsd.GetChildren();
+            foreach (var childDs in childDatasets)
+            {
+                if (childDs.Value.Type != DataSetType.ZFS)
+                    continue;
+                childItems.Add(populateDatasets(basePath == "" ? childDs.Key : basePath + "\\" + childDs.Key, childDs.Value));
+            }
+            info.Children = childItems.ToArray();
+
+            return info;
+        }
+
+        List<ProjectedItemInfo> getChildren(string baseName, Zpl.ZfsDirectory dir)
+        {
+            var projectedChildren = new List<ProjectedItemInfo>();
+            foreach (var c in dir.GetChildren())
+            {
+                var type = c.Type;
+                if (type != ZfsItemType.S_IFREG && type != ZfsItemType.S_IFDIR)
+                    continue;
+
+                var childInfo = new ProjectedItemInfo();
+                childInfo.FullName = baseName == "" ? c.Name : baseName + "\\" + c.Name;
+                childInfo.ProjectedForm = new FileBasicInfo()
+                {
+                    Name = c.Name,
+                    IsDirectory = type == ZfsItemType.S_IFDIR,
+                    FileSize = type == ZfsItemType.S_IFREG ? ((Zpl.ZfsFile)c).Length : 0,
+                    Attributes = FileAttributes.ReadOnly,
+                    ChangeTime = c.MTIME,
+                    CreationTime = c.CTIME,
+                    LastAccessTime = c.ATIME,
+                    LastWriteTime = c.MTIME,
+                };
+                childInfo.ZfsItem = c;
+                projectedChildren.Add(childInfo);
+                lock (mCache)
+                {
+                    mCache[childInfo.FullName] = childInfo;
+                }
+            }
+            return projectedChildren;
         }
 
         public FileBasicInfo[] EnumerateDirectory(bool isWildCardExpression, string directory, string searchExpression)
@@ -104,37 +152,14 @@ namespace ZfsProjFs
                 {
                     if (info.Children == null)
                     {
-                        var projectedChildren = new List<ProjectedItemInfo>();
                         if (info.ZfsItem is Zpl.ZfsDirectory dir)
                         {
-                            foreach (var c in dir.GetChildren())
-                            {
-                                var type = c.Type;
-                                if (type != ZfsItemType.S_IFREG && type != ZfsItemType.S_IFDIR)
-                                    continue;
-
-                                var childInfo = new ProjectedItemInfo();
-                                childInfo.FullName = info.FullName == "" ? c.Name : info.FullName + "\\" + c.Name;
-                                childInfo.ProjectedForm = new FileBasicInfo()
-                                {
-                                    Name = c.Name,
-                                    IsDirectory = type == ZfsItemType.S_IFDIR,
-                                    FileSize = type == ZfsItemType.S_IFREG ? ((Zpl.ZfsFile)c).Length : 0,
-                                    Attributes = FileAttributes.ReadOnly,
-                                    ChangeTime = c.MTIME,
-                                    CreationTime = c.CTIME,
-                                    LastAccessTime = c.ATIME,
-                                    LastWriteTime = c.MTIME,
-                                };
-                                childInfo.ZfsItem = c;
-                                projectedChildren.Add(childInfo);
-                                lock (mCache)
-                                {
-                                    mCache[childInfo.FullName] = childInfo;
-                                }
-                            }
+                            info.Children = getChildren(info.FullName, dir).ToArray();
                         }
-                        info.Children = projectedChildren.ToArray();
+                        else
+                        {
+                            info.Children = new ProjectedItemInfo[0];
+                        }
                     }
 
                     foreach (var c in info.Children)
