@@ -16,7 +16,7 @@ namespace ZfsDokan
 
         public ZfsDokan(Zfs zfs)
         {
-            foreach (var ds in zfs.GetDataSets().Where(ds => ds.Type == DataSetType.ZFS && ds.Name.Contains("var")))
+            foreach (var ds in zfs.GetAllDataSets().Where(ds => ds.Type == DataSetType.ZFS && ds.Name.Contains("var")))
             {
 
                 loadItems(ds.GetHeadZfs().Root);

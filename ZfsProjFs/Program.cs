@@ -1,5 +1,6 @@
 ﻿using Austin.WindowsProjectedFileSystem;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using ZfsSharp;
 
@@ -8,6 +9,8 @@ namespace ZfsProjFs
     class Program : IProjectedFileSystemCallbacks
     {
         Zfs mZfs;
+        ProjectedFileSystem mProjFs;
+        Dictionary<string, ProjectedItemInfo> mCache = new Dictionary<string, ProjectedItemInfo>();
 
         static void Usage()
         {
@@ -57,7 +60,20 @@ namespace ZfsProjFs
 
             using (mZfs = new Zfs(zfsDiskDir))
             {
-                using (var projFs = new ProjectedFileSystem(targetDir, this))
+                //just use the root dataset for now
+                var rootDataset = mZfs.GetRootDataset();
+                var rootDir = rootDataset.GetHeadZfs().Root;
+                var info = new ProjectedItemInfo()
+                {
+                    ZfsItem = rootDir,
+                    ProjectedForm = new FileBasicInfo()
+                    {
+                        IsDirectory = true,
+                        Name = "",
+                    }
+                };
+                mCache[""] = info;
+                using (mProjFs = new ProjectedFileSystem(targetDir, this))
                 {
                     Console.WriteLine("Start virtualizing in " + targetDir);
                     Console.WriteLine("Press enter to exit.");
@@ -66,6 +82,64 @@ namespace ZfsProjFs
             }
 
             return 0;
+        }
+
+        public FileBasicInfo[] EnumerateDirectory(bool isWildCard, string searchExpression)
+        {
+            var ret = new List<FileBasicInfo>();
+            if (isWildCard)
+            {
+                //TODO
+            }
+            else
+            {
+                ProjectedItemInfo info;
+                lock (mCache)
+                {
+                    mCache.TryGetValue(searchExpression, out info);
+                }
+                if (info != null)
+                {
+                    if (info.Children == null)
+                    {
+                        var projectedChildren = new List<ProjectedItemInfo>();
+                        if (info.ZfsItem is Zpl.ZfsDirectory dir)
+                        {
+                            foreach (var c in dir.GetChildren())
+                            {
+                                var type = c.Type;
+                                if (type != ZfsItemType.S_IFREG && type != ZfsItemType.S_IFDIR)
+                                    continue;
+
+                                var childInfo = new ProjectedItemInfo();
+                                childInfo.ProjectedForm = new FileBasicInfo()
+                                {
+                                    Name = c.Name,
+                                    IsDirectory = type == ZfsItemType.S_IFDIR,
+                                    FileSize = type == ZfsItemType.S_IFREG ? ((Zpl.ZfsFile)c).Length : 0,
+                                };
+                                childInfo.ZfsItem = c;
+                                projectedChildren.Add(childInfo);
+                            }
+                        }
+                        info.Children = projectedChildren.ToArray();
+                    }
+
+                    foreach (var c in info.Children)
+                    {
+                        ret.Add(c.ProjectedForm);
+                    }
+                }
+            }
+            return ret.ToArray();
+        }
+
+        public bool FileExists(string fileName)
+        {
+            lock (mCache)
+            {
+                return mCache.ContainsKey(fileName);
+            }
         }
     }
 }

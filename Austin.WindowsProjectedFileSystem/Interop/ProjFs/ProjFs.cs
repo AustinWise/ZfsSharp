@@ -15,6 +15,17 @@ namespace Austin.WindowsProjectedFileSystem
 
             [DllImport(ProjectedFfLibDll, ExactSpelling = true, CharSet = CharSet.Unicode)]
             static extern Int32 PrjStopVirtualizing(IntPtr namespaceVirtualizationContext);
+
+            [DllImport(ProjectedFfLibDll, ExactSpelling = true, CharSet = CharSet.Unicode)]
+            [return: MarshalAs(UnmanagedType.U1)]
+            public static extern bool PrjFileNameMatch(string fileNameToCheck, string pattern);
+
+            [DllImport(ProjectedFfLibDll, ExactSpelling = true, CharSet = CharSet.Unicode)]
+            public static extern Int32 PrjFillDirEntryBuffer(string fileName, in PRJ_FILE_BASIC_INFO fileBasicInfo, IntPtr dirEntryBufferHandle);
+
+            [DllImport(ProjectedFfLibDll, ExactSpelling = true, CharSet = CharSet.Unicode)]
+            [return: MarshalAs(UnmanagedType.U1)]
+            public static extern bool PrjDoesNameContainWildCards(string fileName);
         }
     }
 }

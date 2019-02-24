@@ -152,7 +152,13 @@ namespace ZfsSharp
             }
         }
 
-        public List<DatasetDirectory> GetDataSets()
+        public DatasetDirectory GetRootDataset()
+        {
+            var dsd = new DatasetDirectory(mMos, mObjDir[ROOT_DATASET], mConfig.Get<string>("name"), mZio);
+            return dsd;
+        }
+
+        public List<DatasetDirectory> GetAllDataSets()
         {
             var ret = new List<DatasetDirectory>();
             listDataSetName(mObjDir[ROOT_DATASET], mConfig.Get<string>("name"), ret);
@@ -164,7 +170,7 @@ namespace ZfsSharp
             var dsd = new DatasetDirectory(mMos, objectId, nameBase, mZio);
             ret.Add(dsd);
 
-            foreach (var kvp in dsd.GetChildren())
+            foreach (var kvp in dsd.GetChildIds())
             {
                 listDataSetName(kvp.Value, nameBase + "/" + kvp.Key, ret);
             }

@@ -1,15 +1,18 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace Austin.WindowsProjectedFileSystem
 {
-    public class ProjectedFileSystem : IDisposable
+    public partial class ProjectedFileSystem : IDisposable
     {
         readonly Guid mUniqueId;
         readonly IProjectedFileSystemCallbacks mCallbacks;
         readonly Interop.ProjFs.PRJ_CALLBACKS mNativeCallbacksDelegates;
         readonly Interop.ProjFs.PRJ_CALLBACKS_INTPTR mNativeCallbacksIntptr;
         readonly Interop.ProjFs.PRJ_NAMESPACE_VIRTUALIZATION_CONTEXT mContext;
+        readonly Dictionary<Guid, EnumerationStatus> mDirEnumInfo;
 
         GCHandle mCallbacksPin;
 
@@ -22,6 +25,7 @@ namespace Austin.WindowsProjectedFileSystem
 
             mCallbacks = callbacks;
             mUniqueId = Guid.NewGuid();
+            mDirEnumInfo = new Dictionary<Guid, EnumerationStatus>();
 
             int hr;
             hr = Interop.ProjFs.PrjMarkDirectoryAsPlaceholder(path, null, IntPtr.Zero, mUniqueId);
@@ -57,41 +61,139 @@ namespace Austin.WindowsProjectedFileSystem
                 Marshal.ThrowExceptionForHR(hr);
         }
 
+        public bool FileNameMatch(string fileNameToCheck, string pattern)
+        {
+            return Interop.ProjFs.PrjFileNameMatch(fileNameToCheck, pattern);
+        }
+
         public void Dispose()
         {
             mContext.Dispose();
             mCallbacksPin.Free();
-            GC.KeepAlive(mNativeCallbacksDelegates);
+            GC.KeepAlive(this);
         }
 
         Int32 StartDirectoryEnumerationCallback(in Interop.ProjFs.PRJ_CALLBACK_DATA callbackData, in Guid enumerationId)
         {
-            return 0;
+            try
+            {
+                lock (mDirEnumInfo)
+                {
+                    mDirEnumInfo[enumerationId] = new EnumerationStatus();
+                }
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                return Marshal.GetHRForException(ex);
+            }
         }
 
         Int32 EndDirectoryEnumerationCallback(in Interop.ProjFs.PRJ_CALLBACK_DATA callbackData, in Guid enumerationId)
         {
-            return 0;
+            try
+            {
+                lock (mDirEnumInfo)
+                {
+                    return mDirEnumInfo.Remove(enumerationId) ? 0 : Interop.HResult.ERROR_INVALID_PARAMETER;
+                }
+            }
+            catch (Exception ex)
+            {
+                return Marshal.GetHRForException(ex);
+            }
         }
 
         Int32 GetDirectoryEnumerationCallback(in Interop.ProjFs.PRJ_CALLBACK_DATA callbackData, in Guid enumerationId, string searchExpression, IntPtr dirEntryBufferHandle)
         {
-            return 0;
+            try
+            {
+                EnumerationStatus enumStatus;
+                lock (mDirEnumInfo)
+                {
+                    if (!mDirEnumInfo.TryGetValue(enumerationId, out enumStatus))
+                        return Interop.HResult.ERROR_INVALID_PARAMETER;
+                }
+
+                if ((callbackData.Flags & Interop.ProjFs.PRJ_CALLBACK_DATA_FLAGS.RESTART_SCAN) != 0)
+                {
+                    if (enumStatus.Entries == null)
+                    {
+                        bool isWildCard = Interop.ProjFs.PrjDoesNameContainWildCards(searchExpression);
+                        enumStatus.Entries = mCallbacks.EnumerateDirectory(isWildCard, searchExpression);
+                    }
+                    enumStatus.CurrentIndex = 0;
+                }
+
+
+                for (; enumStatus.CurrentIndex < enumStatus.Entries.Length; enumStatus.CurrentIndex++)
+                {
+                    var item = enumStatus.Entries[enumStatus.CurrentIndex];
+
+                    var fileInfo = new Interop.ProjFs.PRJ_FILE_BASIC_INFO()
+                    {
+                        IsDirectory = item.IsDirectory,
+                        FileSize = item.FileSize,
+                    };
+
+                    int hr = Interop.ProjFs.PrjFillDirEntryBuffer(item.Name, fileInfo, dirEntryBufferHandle);
+                    if (hr == Interop.HResult.ERROR_INSUFFICIENT_BUFFER)
+                    {
+                        if (enumStatus.CurrentIndex == 0)
+                            return Interop.HResult.ERROR_INSUFFICIENT_BUFFER;
+                        break;
+                    }
+                    else if (hr != 0)
+                    {
+                        Debug.Fail($"Unexpected HR: {hr:x}");
+                    }
+
+                    if ((callbackData.Flags & Interop.ProjFs.PRJ_CALLBACK_DATA_FLAGS.RETURN_SINGLE_ENTRY) != 0)
+                        break;
+                }
+
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                return Marshal.GetHRForException(ex);
+            }
         }
 
         Int32 GetPlaceholderInfoCallback(in Interop.ProjFs.PRJ_CALLBACK_DATA callbackData)
         {
-            return 0;
+            try
+            {
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                return Marshal.GetHRForException(ex);
+            }
         }
 
         Int32 GetFileDataCallback(in Interop.ProjFs.PRJ_CALLBACK_DATA callbackData, UInt64 byteOffset, UInt32 length)
         {
-            return 0;
+            try
+            {
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                return Marshal.GetHRForException(ex);
+            }
         }
 
         Int32 QueryFileNameCallback(in Interop.ProjFs.PRJ_CALLBACK_DATA callbackData)
         {
-            return 0;
+            try
+            {
+                return mCallbacks.FileExists(callbackData.FilePathName) ? 0 : Interop.HResult.ERROR_FILE_NOT_FOUND;
+            }
+            catch (Exception ex)
+            {
+                return Marshal.GetHRForException(ex);
+            }
         }
 
         Int32 NotificationCallback(
@@ -101,12 +203,57 @@ namespace Austin.WindowsProjectedFileSystem
             string destinationFileName,
             ref Interop.ProjFs.PRJ_NOTIFICATION_PARAMETERS operationParameters)
         {
-            return 0;
+            int hr = 0;
+            try
+            {
+                switch (notification)
+                {
+                    case Interop.ProjFs.PRJ_NOTIFICATION.FILE_OPENED:
+                        break;
+                    case Interop.ProjFs.PRJ_NOTIFICATION.NEW_FILE_CREATED:
+                        break;
+                    case Interop.ProjFs.PRJ_NOTIFICATION.FILE_OVERWRITTEN:
+                        break;
+                    case Interop.ProjFs.PRJ_NOTIFICATION.PRE_DELETE:
+                        hr = Interop.HResult.STATUS_CANNOT_DELETE;
+                        break;
+                    case Interop.ProjFs.PRJ_NOTIFICATION.PRE_RENAME:
+                        hr = Interop.HResult.STATUS_CANNOT_DELETE;
+                        break;
+                    case Interop.ProjFs.PRJ_NOTIFICATION.PRE_SET_HARDLINK:
+                        hr = Interop.HResult.STATUS_CANNOT_DELETE;
+                        break;
+                    case Interop.ProjFs.PRJ_NOTIFICATION.FILE_RENAMED:
+                        break;
+                    case Interop.ProjFs.PRJ_NOTIFICATION.HARDLINK_CREATED:
+                        break;
+                    case Interop.ProjFs.PRJ_NOTIFICATION.FILE_HANDLE_CLOSED_NO_MODIFICATION:
+                        break;
+                    case Interop.ProjFs.PRJ_NOTIFICATION.FILE_HANDLE_CLOSED_FILE_MODIFIED:
+                        break;
+                    case Interop.ProjFs.PRJ_NOTIFICATION.FILE_HANDLE_CLOSED_FILE_DELETED:
+                        break;
+                    case Interop.ProjFs.PRJ_NOTIFICATION.FILE_PRE_CONVERT_TO_FULL:
+                        break;
+                    default:
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                hr = Marshal.GetHRForException(ex);
+            }
+            return hr;
         }
 
         void CancelCommandCallback(in Interop.ProjFs.PRJ_CALLBACK_DATA callbackData)
         {
-
+            try
+            {
+            }
+            catch
+            {
+            }
         }
     }
 }

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
 namespace ZfsSharp
 {
@@ -84,11 +83,24 @@ namespace ZfsSharp
             return mSnapShots.Select(snap => new KeyValuePair<string, Zpl>(snap.Key, GetZfs(snap.Value)));
         }
 
-        public IEnumerable<KeyValuePair<string, long>> GetChildren()
+        internal IEnumerable<KeyValuePair<string, long>> GetChildIds()
         {
             if (mDslDir.child_dir_zapobj == 0)
                 return Enumerable.Empty<KeyValuePair<string, long>>();
             return Zap.GetDirectoryEntries(mMos, mDslDir.child_dir_zapobj);
+        }
+
+        public Dictionary<string, DatasetDirectory> GetChildren()
+        {
+            var ret = new Dictionary<string, DatasetDirectory>();
+            if (mDslDir.child_dir_zapobj != 0)
+            {
+                foreach (var child in Zap.GetDirectoryEntries(mMos, mDslDir.child_dir_zapobj))
+                {
+                    ret.Add(child.Key, new DatasetDirectory(mMos, child.Value, child.Key, mZio));
+                }
+            }
+            return ret;
         }
 
         internal static bool IsDataSet(DNode dn)

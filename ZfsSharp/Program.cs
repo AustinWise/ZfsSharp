@@ -22,7 +22,7 @@ namespace ZfsSharp
             using (var zfs = new Zfs(args[0]))
             {
                 sw = Stopwatch.StartNew();
-                foreach (var ds in zfs.GetDataSets())
+                foreach (var ds in zfs.GetAllDataSets())
                 {
                     Console.WriteLine("{0}: {1}", ds.Type, ds.Name);
 
@@ -74,7 +74,7 @@ namespace ZfsSharp
 
         private static void BenchmarkFileReading(Zfs zfs)
         {
-            var varzpl = zfs.GetDataSets().Where(k => k.Name == "zones/var").Select(ds => ds.GetHeadZfs()).Single();
+            var varzpl = zfs.GetAllDataSets().Where(k => k.Name == "zones/var").Select(ds => ds.GetHeadZfs()).Single();
             Stopwatch st = Stopwatch.StartNew();
             for (int i = 0; i < 1000; i++)
             {

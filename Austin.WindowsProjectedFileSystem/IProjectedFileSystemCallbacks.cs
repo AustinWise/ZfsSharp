@@ -6,5 +6,7 @@ namespace Austin.WindowsProjectedFileSystem
 {
     public interface IProjectedFileSystemCallbacks
     {
+        FileBasicInfo[] EnumerateDirectory(bool isWildCardExpression, string searchExpression);
+        bool FileExists(string fileName);
     }
 }
