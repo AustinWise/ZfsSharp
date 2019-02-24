@@ -7,8 +7,11 @@ namespace ZfsSharp
     {
         public zio_cksum_t Calculate(ArraySegment<byte> input)
         {
-            var sha = SHA256.Create();
-            var checksumBytes = sha.ComputeHash(input.Array, input.Offset, input.Count);
+            byte[] checksumBytes;
+            using (var sha = SHA256.Create())
+            {
+                checksumBytes = sha.ComputeHash(input.Array, input.Offset, input.Count);
+            }
             return Program.ToStructByteSwap<zio_cksum_t>(checksumBytes);
         }
     }
