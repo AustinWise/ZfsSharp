@@ -12,6 +12,17 @@ namespace Austin.WindowsProjectedFileSystem
         public DateTime LastAccessTime { get; set; }
         public DateTime LastWriteTime { get; set; }
         public DateTime ChangeTime { get; set; }
-        FileAttributes Attributes { get; set; }
+        public FileAttributes Attributes { get; set; }
+
+        internal Interop.ProjFs.PRJ_FILE_BASIC_INFO GoNative()
+        {
+            var ret = new Interop.ProjFs.PRJ_FILE_BASIC_INFO()
+            {
+                FileSize = this.FileSize,
+                IsDirectory = this.IsDirectory,
+                FileAttributes = (uint)this.Attributes,
+            };
+            return ret;
+        }
     }
 }

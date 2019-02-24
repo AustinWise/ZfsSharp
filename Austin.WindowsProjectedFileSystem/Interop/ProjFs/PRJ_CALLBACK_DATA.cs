@@ -14,7 +14,7 @@ namespace Austin.WindowsProjectedFileSystem
             {
                 public UInt32 Size;
                 public PRJ_CALLBACK_DATA_FLAGS Flags;
-                IntPtr NamespaceVirtualizationContext;
+                public IntPtr NamespaceVirtualizationContext;
                 public Int32 CommandId;
                 public Guid FileId;
                 public Guid DataStreamId;

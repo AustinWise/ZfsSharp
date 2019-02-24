@@ -1,12 +1,16 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 
 namespace Austin.WindowsProjectedFileSystem
 {
     public partial class ProjectedFileSystem : IDisposable
     {
+        static readonly ArrayPool<byte> sArrayPool = ArrayPool<byte>.Shared;
+
         readonly Guid mUniqueId;
         readonly IProjectedFileSystemCallbacks mCallbacks;
         readonly Interop.ProjFs.PRJ_CALLBACKS mNativeCallbacksDelegates;
@@ -26,6 +30,12 @@ namespace Austin.WindowsProjectedFileSystem
             mCallbacks = callbacks;
             mUniqueId = Guid.NewGuid();
             mDirEnumInfo = new Dictionary<Guid, EnumerationStatus>();
+
+            //if (Directory.Exists(path))
+            //{
+            //    Directory.Delete(path, true);
+            //}
+            //Directory.CreateDirectory(path);
 
             int hr;
             hr = Interop.ProjFs.PrjMarkDirectoryAsPlaceholder(path, null, IntPtr.Zero, mUniqueId);
@@ -115,12 +125,13 @@ namespace Austin.WindowsProjectedFileSystem
                         return Interop.HResult.ERROR_INVALID_PARAMETER;
                 }
 
-                if ((callbackData.Flags & Interop.ProjFs.PRJ_CALLBACK_DATA_FLAGS.RESTART_SCAN) != 0)
+                if ((callbackData.Flags & Interop.ProjFs.PRJ_CALLBACK_DATA_FLAGS.RESTART_SCAN) != 0 ||
+                    (callbackData.Flags & Interop.ProjFs.PRJ_CALLBACK_DATA_FLAGS.RETURN_SINGLE_ENTRY) != 0)
                 {
                     if (enumStatus.Entries == null)
                     {
                         bool isWildCard = Interop.ProjFs.PrjDoesNameContainWildCards(searchExpression);
-                        enumStatus.Entries = mCallbacks.EnumerateDirectory(isWildCard, searchExpression);
+                        enumStatus.Entries = mCallbacks.EnumerateDirectory(isWildCard, callbackData.FilePathName, searchExpression);
                     }
                     enumStatus.CurrentIndex = 0;
                 }
@@ -130,13 +141,7 @@ namespace Austin.WindowsProjectedFileSystem
                 {
                     var item = enumStatus.Entries[enumStatus.CurrentIndex];
 
-                    var fileInfo = new Interop.ProjFs.PRJ_FILE_BASIC_INFO()
-                    {
-                        IsDirectory = item.IsDirectory,
-                        FileSize = item.FileSize,
-                    };
-
-                    int hr = Interop.ProjFs.PrjFillDirEntryBuffer(item.Name, fileInfo, dirEntryBufferHandle);
+                    int hr = Interop.ProjFs.PrjFillDirEntryBuffer(item.Name, item.GoNative(), dirEntryBufferHandle);
                     if (hr == Interop.HResult.ERROR_INSUFFICIENT_BUFFER)
                     {
                         if (enumStatus.CurrentIndex == 0)
@@ -164,7 +169,13 @@ namespace Austin.WindowsProjectedFileSystem
         {
             try
             {
-                return 0;
+                var info = mCallbacks.QueryFileInfo(callbackData.FilePathName);
+                if (info == null)
+                    return Interop.HResult.ERROR_FILE_NOT_FOUND;
+                var placeholderInfo = new Interop.ProjFs.PRJ_PLACEHOLDER_INFO();
+                placeholderInfo.FileBasicInfo = info.GoNative();
+                int hr = Interop.ProjFs.PrjWritePlaceholderInfo(callbackData.NamespaceVirtualizationContext, callbackData.FilePathName, placeholderInfo, (uint)Marshal.SizeOf<Interop.ProjFs.PRJ_PLACEHOLDER_INFO>());
+                return hr;
             }
             catch (Exception ex)
             {
@@ -172,15 +183,29 @@ namespace Austin.WindowsProjectedFileSystem
             }
         }
 
-        Int32 GetFileDataCallback(in Interop.ProjFs.PRJ_CALLBACK_DATA callbackData, UInt64 byteOffset, UInt32 length)
+        unsafe Int32 GetFileDataCallback(in Interop.ProjFs.PRJ_CALLBACK_DATA callbackData, UInt64 byteOffset, UInt32 length)
         {
+            byte[] buf = null;
             try
             {
-                return 0;
+                buf = sArrayPool.Rent(checked((int)length));
+                bool foundFile = mCallbacks.GetFileData(callbackData.FilePathName, buf, byteOffset, length);
+                if (!foundFile)
+                    return Interop.HResult.ERROR_FILE_NOT_FOUND;
+                fixed (byte* pBytes = buf)
+                {
+                    int hr = Interop.ProjFs.PrjWriteFileData(callbackData.NamespaceVirtualizationContext, callbackData.DataStreamId, pBytes, byteOffset, length);
+                    return hr;
+                }
             }
             catch (Exception ex)
             {
                 return Marshal.GetHRForException(ex);
+            }
+            finally
+            {
+                if (buf != null)
+                    sArrayPool.Return(buf);
             }
         }
 

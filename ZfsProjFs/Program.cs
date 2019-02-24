@@ -70,7 +70,8 @@ namespace ZfsProjFs
                     {
                         IsDirectory = true,
                         Name = "",
-                    }
+                    },
+                    FullName = "",
                 };
                 mCache[""] = info;
                 using (mProjFs = new ProjectedFileSystem(targetDir, this))
@@ -84,10 +85,11 @@ namespace ZfsProjFs
             return 0;
         }
 
-        public FileBasicInfo[] EnumerateDirectory(bool isWildCard, string searchExpression)
+        public FileBasicInfo[] EnumerateDirectory(bool isWildCardExpression, string directory, string searchExpression)
         {
             var ret = new List<FileBasicInfo>();
-            if (isWildCard)
+
+            if (isWildCardExpression)
             {
                 //TODO
             }
@@ -96,7 +98,7 @@ namespace ZfsProjFs
                 ProjectedItemInfo info;
                 lock (mCache)
                 {
-                    mCache.TryGetValue(searchExpression, out info);
+                    mCache.TryGetValue(directory, out info);
                 }
                 if (info != null)
                 {
@@ -112,14 +114,20 @@ namespace ZfsProjFs
                                     continue;
 
                                 var childInfo = new ProjectedItemInfo();
+                                childInfo.FullName = info.FullName == "" ? c.Name : info.FullName + "\\" + c.Name;
                                 childInfo.ProjectedForm = new FileBasicInfo()
                                 {
                                     Name = c.Name,
                                     IsDirectory = type == ZfsItemType.S_IFDIR,
                                     FileSize = type == ZfsItemType.S_IFREG ? ((Zpl.ZfsFile)c).Length : 0,
+                                    Attributes = FileAttributes.ReadOnly,
                                 };
                                 childInfo.ZfsItem = c;
                                 projectedChildren.Add(childInfo);
+                                lock (mCache)
+                                {
+                                    mCache[childInfo.FullName] = childInfo;
+                                }
                             }
                         }
                         info.Children = projectedChildren.ToArray();
@@ -127,7 +135,8 @@ namespace ZfsProjFs
 
                     foreach (var c in info.Children)
                     {
-                        ret.Add(c.ProjectedForm);
+                        if (mProjFs.FileNameMatch(c.FullName, searchExpression))
+                            ret.Add(c.ProjectedForm);
                     }
                 }
             }
@@ -140,6 +149,33 @@ namespace ZfsProjFs
             {
                 return mCache.ContainsKey(fileName);
             }
+        }
+
+        public FileBasicInfo QueryFileInfo(string fileName)
+        {
+            ProjectedItemInfo ret;
+            lock (mCache)
+            {
+                mCache.TryGetValue(fileName, out ret);
+            }
+            return ret?.ProjectedForm;
+        }
+
+        public bool GetFileData(string fileName, byte[] buf, ulong offset, uint length)
+        {
+            ProjectedItemInfo ret;
+            lock (mCache)
+            {
+                mCache.TryGetValue(fileName, out ret);
+            }
+            var file = ret?.ZfsItem as Zpl.ZfsFile;
+            if (file == null)
+                return false;
+            checked
+            {
+                file.GetContents(buf, (long)offset, (int)length);
+            }
+            return true;
         }
     }
 }

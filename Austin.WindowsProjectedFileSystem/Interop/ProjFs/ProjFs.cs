@@ -26,6 +26,12 @@ namespace Austin.WindowsProjectedFileSystem
             [DllImport(ProjectedFfLibDll, ExactSpelling = true, CharSet = CharSet.Unicode)]
             [return: MarshalAs(UnmanagedType.U1)]
             public static extern bool PrjDoesNameContainWildCards(string fileName);
+
+            [DllImport(ProjectedFfLibDll, ExactSpelling = true, CharSet = CharSet.Unicode)]
+            public static extern Int32 PrjWritePlaceholderInfo(IntPtr namespaceVirtualizationContext, string destinationFileName, in PRJ_PLACEHOLDER_INFO placeholderInfo, UInt32 placeholderInfoSize);
+
+            [DllImport(ProjectedFfLibDll, ExactSpelling = true, CharSet = CharSet.Unicode)]
+            public static extern unsafe Int32 PrjWriteFileData(IntPtr namespaceVirtualizationContext, in Guid dataStreamId, byte* buffer, UInt64 byteOffset, UInt32 length);
         }
     }
 }
