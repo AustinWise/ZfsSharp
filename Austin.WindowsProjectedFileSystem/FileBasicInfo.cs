@@ -21,6 +21,10 @@ namespace Austin.WindowsProjectedFileSystem
                 FileSize = this.FileSize,
                 IsDirectory = this.IsDirectory,
                 FileAttributes = (uint)this.Attributes,
+                ChangeTime = this.ChangeTime.ToFileTimeUtc(),
+                CreationTime = this.CreationTime.ToFileTimeUtc(),
+                LastAccessTime = this.LastAccessTime.ToFileTimeUtc(),
+                LastWriteTime = this.LastWriteTime.ToFileTimeUtc(),
             };
             return ret;
         }

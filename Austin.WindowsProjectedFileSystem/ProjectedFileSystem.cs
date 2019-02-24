@@ -31,12 +31,6 @@ namespace Austin.WindowsProjectedFileSystem
             mUniqueId = Guid.NewGuid();
             mDirEnumInfo = new Dictionary<Guid, EnumerationStatus>();
 
-            //if (Directory.Exists(path))
-            //{
-            //    Directory.Delete(path, true);
-            //}
-            //Directory.CreateDirectory(path);
-
             int hr;
             hr = Interop.ProjFs.PrjMarkDirectoryAsPlaceholder(path, null, IntPtr.Zero, mUniqueId);
             if (hr != 0)
@@ -136,7 +130,6 @@ namespace Austin.WindowsProjectedFileSystem
                     enumStatus.CurrentIndex = 0;
                 }
 
-
                 for (; enumStatus.CurrentIndex < enumStatus.Entries.Length; enumStatus.CurrentIndex++)
                 {
                     var item = enumStatus.Entries[enumStatus.CurrentIndex];
@@ -154,7 +147,10 @@ namespace Austin.WindowsProjectedFileSystem
                     }
 
                     if ((callbackData.Flags & Interop.ProjFs.PRJ_CALLBACK_DATA_FLAGS.RETURN_SINGLE_ENTRY) != 0)
+                    {
+                        enumStatus.CurrentIndex = int.MaxValue;
                         break;
+                    }
                 }
 
                 return 0;

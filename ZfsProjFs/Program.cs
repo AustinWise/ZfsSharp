@@ -121,6 +121,10 @@ namespace ZfsProjFs
                                     IsDirectory = type == ZfsItemType.S_IFDIR,
                                     FileSize = type == ZfsItemType.S_IFREG ? ((Zpl.ZfsFile)c).Length : 0,
                                     Attributes = FileAttributes.ReadOnly,
+                                    ChangeTime = c.MTIME,
+                                    CreationTime = c.CTIME,
+                                    LastAccessTime = c.ATIME,
+                                    LastWriteTime = c.MTIME,
                                 };
                                 childInfo.ZfsItem = c;
                                 projectedChildren.Add(childInfo);
