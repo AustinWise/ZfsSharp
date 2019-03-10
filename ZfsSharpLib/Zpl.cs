@@ -362,17 +362,35 @@ namespace ZfsSharp
 
             public byte[] GetContents(long offset, int count)
             {
-                //TODO: deal with files whose length is greater than the data allocated by the DNode
-                return mDn.Read(offset, count);
+                if (count < 0)
+                    throw new ArgumentOutOfRangeException(nameof(count), "Count must be possitive.");
+                //leave other argument validation to the next method
+
+                byte[] ret = new byte[count];
+                GetContents(ret, offset);
+                return ret;
             }
 
-            public void GetContents(byte[] buffer, long offset, int count)
+            public void GetContents(Span<byte> buffer, long offset)
             {
-                //TODO: deal with files whose length is greater than the data allocated by the DNode
-                mDn.Read(buffer, offset, count);
+                if (buffer == null)
+                    throw new ArgumentNullException(nameof(buffer));
+                if (offset < 0)
+                    throw new ArgumentOutOfRangeException(nameof(offset), "Offset must note be negitive.");
+                if (offset + buffer.Length > Length)
+                    throw new ArgumentOutOfRangeException(nameof(offset), "Count exceeds available data.");
+
+                int bytesToRead = buffer.Length;
+                if (offset + buffer.Length > mDn.AvailableDataSize)
+                    bytesToRead = (int)Math.Max(0, mDn.AvailableDataSize - offset);
+
+                if (bytesToRead != 0)
+                    mDn.Read(buffer.Slice(0, bytesToRead), offset);
+                if (bytesToRead != buffer.Length)
+                    buffer.Slice(bytesToRead).Fill(0);
             }
 
-            public long Length { get; private set; }
+            public long Length { get; }
 
             internal override dmu_object_type_t DmuType
             {

@@ -9,9 +9,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ZfsSharp", "ZfsSharp\ZfsSha
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ZfsDokan", "ZfsDokan\ZfsDokan.csproj", "{DE824396-0149-4CC2-B5DF-E496EEFACE97}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZfsProjFs", "ZfsProjFs\ZfsProjFs.csproj", "{D517BADE-DA8C-4215-8486-40A994345E25}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ZfsProjFs", "ZfsProjFs\ZfsProjFs.csproj", "{D517BADE-DA8C-4215-8486-40A994345E25}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Austin.WindowsProjectedFileSystem", "Austin.WindowsProjectedFileSystem\Austin.WindowsProjectedFileSystem.csproj", "{42E809F5-D3E8-43B7-BD0E-BA49FD73AD38}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Austin.WindowsProjectedFileSystem", "Austin.WindowsProjectedFileSystem\Austin.WindowsProjectedFileSystem.csproj", "{42E809F5-D3E8-43B7-BD0E-BA49FD73AD38}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -97,7 +97,7 @@ namespace ZfsDokan
                 bytesToRead = (int)(item.Length - offset);
             }
 
-            item.GetContents(buffer, offset, bytesToRead);
+            item.GetContents(new Span<byte>(buffer, 0, bytesToRead), offset);
             readBytes = (uint)bytesToRead;
             return 0;
         }

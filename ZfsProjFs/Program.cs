@@ -202,7 +202,7 @@ namespace ZfsProjFs
                 return false;
             checked
             {
-                file.GetContents(buf, (long)offset, (int)length);
+                file.GetContents(new Span<byte>(buf, 0, (int)length), (long)offset);
             }
             return true;
         }

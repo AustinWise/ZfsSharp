@@ -93,7 +93,10 @@ namespace ZfsSharp
 
             if (file != null)
             {
-                file.GetContents();
+                int length = (int)file.Length;
+                byte[] bytes = ArrayPool<byte>.Shared.Rent(length);
+                file.GetContents(new Span<byte>(bytes, 0, length), 0);
+                ArrayPool<byte>.Shared.Return(bytes);
             }
 
             if (dir == null)
