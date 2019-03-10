@@ -5,6 +5,7 @@ namespace ZfsSharp
 {
     public enum ZfsItemType
     {
+        None = 0,
         /// <summary>
         /// Fifo
         /// </summary>

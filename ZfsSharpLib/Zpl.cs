@@ -446,7 +446,8 @@ namespace ZfsSharp
                 foreach (var kvp in dirContents)
                 {
                     string name = kvp.Key;
-                    long objId = kvp.Value;
+                    ZfsItemType type = (ZfsItemType)((ulong)kvp.Value >> 60);
+                    long objId = kvp.Value & (long)~0xF000000000000000;
                     var dn = mZpl.mZfsObjset.ReadEntry(objId);
 
                     using (var saAttrs = this.mZpl.RentAttrBytes(dn))
@@ -455,7 +456,8 @@ namespace ZfsSharp
                             yield return new ZfsDirectory(mZpl, this, name, dn, saAttrs);
                         else if (dn.Type == dmu_object_type_t.PLAIN_FILE_CONTENTS)
                         {
-                            var type = mZpl.GetFileType(saAttrs);
+                            if (type == ZfsItemType.None)
+                                type = mZpl.GetFileType(saAttrs);
                             if (type == ZfsItemType.S_IFREG)
                             {
                                 yield return new ZfsFile(mZpl, this, name, dn, saAttrs);
