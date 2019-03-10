@@ -187,42 +187,20 @@ namespace LZ4ps
 			var len = length;
 
 			Assert(diff >= 4, "Target must be at least 4 bytes further than source");
-			Assert(BLOCK_COPY_LIMIT > 4, "This method requires BLOCK_COPY_LIMIT > 4");
 			Assert(len > 0, "Length have to be greater than 0");
 
-			//if (diff >= BLOCK_COPY_LIMIT)
-			{
-				if (diff >= length)
-				{
-                    buffer.Slice(src, length).CopyTo(buffer.Slice(dst));
-					return length; // done
-				}
-
-				do
+            if (diff > 4)
+            {
+                while (len >= diff)
                 {
                     buffer.Slice(src, diff).CopyTo(buffer.Slice(dst));
-					src += diff;
-					dst += diff;
-					len -= diff;
-				} while (len >= diff);
-			}
+                    src += diff;
+                    dst += diff;
+                    len -= diff;
+                }
+            }
 
-			// apparently (tested) this is an overkill
-			// it seems to be faster without this 8-byte loop
-			//while (len >= 8)
-			//{
-			//	buffer[dst] = buffer[src];
-			//	buffer[dst + 1] = buffer[src + 1];
-			//	buffer[dst + 2] = buffer[src + 2];
-			//	buffer[dst + 3] = buffer[src + 3];
-			//	buffer[dst + 4] = buffer[src + 4];
-			//	buffer[dst + 5] = buffer[src + 5];
-			//	buffer[dst + 6] = buffer[src + 6];
-			//	buffer[dst + 7] = buffer[src + 7];
-			//	dst += 8; src += 8; len -= 8;
-			//}
-
-			while (len >= 4)
+            while (len >= 4)
 			{
 				buffer[dst] = buffer[src];
 				buffer[dst + 1] = buffer[src + 1];
