@@ -5,7 +5,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace ZfsSharp
+namespace ZfsSharpLib
 {
     public class Zpl
     {

@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.IO;
-using ZfsSharp.HardDisks;
+using ZfsSharpLib.HardDisks;
 
-namespace ZfsSharp.VirtualDevices
+namespace ZfsSharpLib.VirtualDevices
 {
     class HddVdev : Vdev
     {

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace ZfsSharp.HardDisks
+namespace ZfsSharpLib.HardDisks
 {
     class OffsetHardDisk : HardDisk
     {

@@ -2,7 +2,7 @@
 using System.DataStructures;
 using System.Diagnostics;
 
-namespace ZfsSharp
+namespace ZfsSharpLib
 {
     class RangeMap
     {

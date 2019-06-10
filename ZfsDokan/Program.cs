@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Dokan;
-using ZfsSharp;
+using ZfsSharpLib;
 
 namespace ZfsDokan
 {

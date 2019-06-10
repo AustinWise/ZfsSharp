@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace ZfsSharp
+namespace ZfsSharpLib
 {
     public class DatasetDirectory
     {

@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace ZfsSharp
+namespace ZfsSharpLib
 {
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     struct space_map_obj

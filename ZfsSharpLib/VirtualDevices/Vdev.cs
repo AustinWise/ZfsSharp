@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace ZfsSharp.VirtualDevices
+namespace ZfsSharpLib.VirtualDevices
 {
     abstract class Vdev
     {

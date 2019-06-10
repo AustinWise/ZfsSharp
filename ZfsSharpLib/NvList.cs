@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
-namespace ZfsSharp
+namespace ZfsSharpLib
 {
     //based on usr\src\uts\common\rpc\xdr.c
 

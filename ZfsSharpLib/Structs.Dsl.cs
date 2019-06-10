@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 
-namespace ZfsSharp
+namespace ZfsSharpLib
 {
     [Flags]
     enum DD_FLAG : ulong

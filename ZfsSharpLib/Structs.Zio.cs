@@ -2,7 +2,7 @@
 using System.Collections.Immutable;
 using System.Runtime.InteropServices;
 
-namespace ZfsSharp
+namespace ZfsSharpLib
 {
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     struct zio_cksum_t : IEquatable<zio_cksum_t>

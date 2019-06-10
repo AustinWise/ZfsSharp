@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace ZfsSharp
+namespace ZfsSharpLib
 {
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     struct uberblock_t

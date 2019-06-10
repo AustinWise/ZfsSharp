@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace ZfsSharp
+namespace ZfsSharpLib
 {
     abstract class HardDisk : IDisposable
     {

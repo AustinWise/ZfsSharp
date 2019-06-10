@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using ZfsSharp.HardDisks;
+using ZfsSharpLib.HardDisks;
 
-namespace ZfsSharp
+namespace ZfsSharpLib
 {
     class LeafVdevInfo : IDisposable
     {

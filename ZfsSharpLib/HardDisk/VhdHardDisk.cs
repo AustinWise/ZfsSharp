@@ -2,7 +2,7 @@
 using System.Collections;
 using System.Runtime.InteropServices;
 
-namespace ZfsSharp.HardDisks
+namespace ZfsSharpLib.HardDisks
 {
     static class VhdHardDisk
     {

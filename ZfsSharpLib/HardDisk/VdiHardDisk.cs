@@ -2,7 +2,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace ZfsSharp.HardDisks
+namespace ZfsSharpLib.HardDisks
 {
     class VdiHardDisk : OffsetTableHardDisk
     {

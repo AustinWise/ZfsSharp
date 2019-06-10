@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using System.Runtime.InteropServices;
 using System.IO;
 
-namespace ZfsSharp.HardDisks
+namespace ZfsSharpLib.HardDisks
 {
     enum MbrPartitionType : byte
     {

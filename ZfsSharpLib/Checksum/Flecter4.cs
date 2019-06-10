@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 
-namespace ZfsSharp
+namespace ZfsSharpLib
 {
     class Flecter4 : IChecksum
     {

@@ -5,7 +5,7 @@ using System.Text;
 using Dokan;
 using System.Collections;
 using System.IO;
-using ZfsSharp;
+using ZfsSharpLib;
 
 namespace ZfsDokan
 {

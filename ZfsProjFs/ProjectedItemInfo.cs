@@ -1,5 +1,5 @@
 ﻿using Austin.WindowsProjectedFileSystem;
-using ZfsSharp;
+using ZfsSharpLib;
 
 namespace ZfsProjFs
 {

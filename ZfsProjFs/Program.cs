@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using ZfsSharp;
+using ZfsSharpLib;
 
 namespace ZfsProjFs
 {

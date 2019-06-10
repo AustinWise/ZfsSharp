@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 
-namespace ZfsSharp
+namespace ZfsSharpLib
 {
     [StructLayout(LayoutKind.Sequential)]
     struct ddt_key_t

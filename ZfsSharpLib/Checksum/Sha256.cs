@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Security.Cryptography;
 
-namespace ZfsSharp
+namespace ZfsSharpLib
 {
     class Sha256 : IChecksum
     {

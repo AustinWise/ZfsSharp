@@ -1,7 +1,7 @@
 ﻿using System.IO;
 using System.Text;
 
-namespace ZfsSharp
+namespace ZfsSharpLib
 {
     class NvListBinaryReader : BinaryReader
     {

@@ -3,9 +3,9 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using ZfsSharp.VirtualDevices;
+using ZfsSharpLib.VirtualDevices;
 
-namespace ZfsSharp
+namespace ZfsSharpLib
 {
     class Zio
     {

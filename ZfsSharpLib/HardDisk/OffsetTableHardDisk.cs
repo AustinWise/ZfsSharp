@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ZfsSharp
+namespace ZfsSharpLib
 {
     abstract class OffsetTableHardDisk : HardDisk
     {

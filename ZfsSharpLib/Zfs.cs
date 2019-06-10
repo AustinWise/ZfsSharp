@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
-using ZfsSharp.VirtualDevices;
+using ZfsSharpLib.VirtualDevices;
 
-namespace ZfsSharp
+namespace ZfsSharpLib
 {
     public class Zfs : IDisposable
     {
