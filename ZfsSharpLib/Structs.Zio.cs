@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 namespace ZfsSharpLib
 {
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    struct zio_cksum_t : IEquatable<zio_cksum_t>
+    public struct zio_cksum_t : IEquatable<zio_cksum_t>
     {
         public ulong word1;
         public ulong word2;
@@ -28,7 +28,7 @@ namespace ZfsSharpLib
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    struct dva_t
+    public struct dva_t
     {
         long word1;
         long word2;
@@ -66,7 +66,7 @@ namespace ZfsSharpLib
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    struct NormalProperties
+    public struct NormalProperties
     {
         long prop;
 
@@ -91,14 +91,14 @@ namespace ZfsSharpLib
         }
     }
 
-    enum EmbeddedType : byte
+    public enum EmbeddedType : byte
     {
         Data,
         Reserved,
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    struct EmbeddedProperties
+    public struct EmbeddedProperties
     {
         long prop;
 
@@ -124,7 +124,7 @@ namespace ZfsSharpLib
     }
 
     [StructLayout(LayoutKind.Explicit, Pack = 1)]
-    unsafe struct blkptr_t : IEquatable<blkptr_t>
+    public unsafe struct blkptr_t : IEquatable<blkptr_t>
     {
         public const int SPA_BLKPTRSHIFT = 7;
         public const int SPA_DVAS_PER_BP = 3;
@@ -154,9 +154,9 @@ namespace ZfsSharpLib
         [FieldOffset(48)]
         long prop;
         [FieldOffset(48)]
-        NormalProperties NormalProps;
+        public NormalProperties NormalProps;
         [FieldOffset(48)]
-        EmbeddedProperties EmbedProps;
+        public EmbeddedProperties EmbedProps;
 
         [FieldOffset(56)]
         long pad1;
@@ -319,7 +319,7 @@ namespace ZfsSharpLib
         zio_eck_t zg_tail;
     }
 
-    enum zio_checksum : byte
+    public enum zio_checksum : byte
     {
         INHERIT = 0,
         ON,
@@ -338,7 +338,7 @@ namespace ZfsSharpLib
         FUNCTIONS
     }
 
-    enum zio_compress : byte
+    public enum zio_compress : byte
     {
         INHERIT = 0,
         ON,

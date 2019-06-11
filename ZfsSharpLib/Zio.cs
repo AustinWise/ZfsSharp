@@ -7,7 +7,7 @@ using ZfsSharpLib.VirtualDevices;
 
 namespace ZfsSharpLib
 {
-    class Zio
+    public class Zio
     {
         static readonly Sha256 sEmbeddedChecksum = new Sha256();
 
@@ -36,19 +36,22 @@ namespace ZfsSharpLib
         private Vdev[] mVdevs;
         //TODO: change these not to use a dictionary so lookup is faster
         private Dictionary<zio_checksum, IChecksum> mChecksums = new Dictionary<zio_checksum, IChecksum>();
-        private Dictionary<zio_compress, ICompression> mCompression = new Dictionary<zio_compress, ICompression>();
+        private static Dictionary<zio_compress, ICompression> mCompression = new Dictionary<zio_compress, ICompression>();
 
-        public Zio(Vdev[] vdevs)
+        static Zio()
+        {
+            mCompression.Add(zio_compress.LZJB, new Lzjb());
+            mCompression.Add(zio_compress.OFF, new NoCompression());
+            mCompression.Add(zio_compress.LZ4, new LZ4());
+        }
+
+        internal Zio(Vdev[] vdevs)
         {
             mVdevs = vdevs;
 
             mChecksums.Add(zio_checksum.OFF, new NoChecksum());
             mChecksums.Add(zio_checksum.FLETCHER_4, new Flecter4());
             mChecksums.Add(zio_checksum.SHA256, new Sha256());
-
-            mCompression.Add(zio_compress.LZJB, new Lzjb());
-            mCompression.Add(zio_compress.OFF, new NoCompression());
-            mCompression.Add(zio_compress.LZ4, new LZ4());
 
             var gz = new GZip();
             for (int i = (int)zio_compress.GZIP_1; i <= (int)zio_compress.GZIP_9; i++)
@@ -63,7 +66,7 @@ namespace ZfsSharpLib
         }
 
         //a bit of a layering violation
-        public void InitMetaSlabs(ObjectSet mos)
+        internal void InitMetaSlabs(ObjectSet mos)
         {
             foreach (var v in mVdevs)
             {
@@ -71,7 +74,7 @@ namespace ZfsSharpLib
             }
         }
 
-        unsafe void ReadEmbedded(blkptr_t blkptr, Span<byte> dest)
+        public static unsafe void ReadEmbedded(blkptr_t blkptr, Span<byte> dest)
         {
             if (blkptr.EmbedType != EmbeddedType.Data)
                 throw new Exception("Unsupported embedded type: " + blkptr.EmbedType);

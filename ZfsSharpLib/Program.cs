@@ -21,7 +21,7 @@ namespace ZfsSharpLib
         public const ulong UbMagic = 0x00bab10c;
     }
 
-    static class Program
+    public static class Program
     {
         static readonly ArrayPool<byte> sBytePool = ArrayPool<byte>.Shared;
 

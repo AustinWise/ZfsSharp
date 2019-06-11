@@ -66,7 +66,7 @@ namespace ZfsSharpLib
         DMU_BSWAP_NUMFUNCS
     }
 
-    enum dmu_object_type_t : byte
+    public enum dmu_object_type_t : byte
     {
         NONE,
         /* general: */

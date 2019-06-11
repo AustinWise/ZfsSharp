@@ -4,13 +4,79 @@ using System.IO;
 using System.Linq;
 using ZfsSharpLib;
 using System.Text;
+using System.Globalization;
+using System.Buffers;
 
 namespace ZfsSharp
 {
-    class Program
+    static class Program
     {
+        private static void printDva(dva_t dva)
+        {
+            Console.WriteLine($"\t\tis gang block: {dva.IsGang}");
+            Console.WriteLine($"\t\tVDEV: {dva.VDev}");
+            Console.WriteLine($"\t\tASIZE: {dva.ASize}");
+            Console.WriteLine($"\t\toffset: {dva.Offset}");
+        }
+
+        private static void printBlockPointer(blkptr_t blkptr)
+        {
+            Console.WriteLine("Block pointer type: " + (blkptr.IsEmbedded ? "embedded data" : "normal"));
+            Console.WriteLine($"logical birth txg: {blkptr.birth}");
+            if (!blkptr.IsEmbedded)
+            {
+                Console.WriteLine($"physical birth: {blkptr.PhysBirth}");
+                Console.WriteLine($"fill: {blkptr.fill}");
+            }
+            Console.WriteLine($"logical size (bytes): {blkptr.LogicalSizeBytes}");
+            Console.WriteLine($"physical size (bytes): {blkptr.PhysicalSizeBytes}");
+            Console.WriteLine("Properties:");
+            Console.WriteLine($"\tis little endian: {blkptr.IsLittleEndian}");
+            Console.WriteLine($"\tis dedup: {blkptr.IsDedup}");
+            Console.WriteLine($"\tlevel: {blkptr.Level}");
+            Console.WriteLine($"\ttype: {blkptr.Type}");
+            Console.WriteLine($"\tcompression: {blkptr.Compress}");
+            Console.WriteLine($"\tcompression: {blkptr.Compress}");
+
+
+            if (blkptr.IsEmbedded)
+            {
+                Console.WriteLine($"\tembedded data type: {blkptr.EmbedType}");
+                Console.WriteLine($"\tPSIZE: {blkptr.EmbedProps.PSize}");
+                Console.WriteLine($"\tLSIZE: {blkptr.EmbedProps.LSize}");
+                Console.WriteLine("Embedded data:");
+                var data = new byte[blkptr.LogicalSizeBytes];
+                Zio.ReadEmbedded(blkptr, data);
+                Console.WriteLine("\t" + string.Join(" ", data.Select(b => b.ToString("x"))));
+            }
+            else
+            {
+                Console.WriteLine($"\tPSIZE: {blkptr.NormalProps.PSize}");
+                Console.WriteLine($"\tLSIZE: {blkptr.NormalProps.LSize}");
+                Console.WriteLine($"\tchecksum type: {blkptr.Checksum}");
+
+                Console.WriteLine("Data:");
+                Console.WriteLine("\tDVA 1:");
+                printDva(blkptr.dva1);
+                Console.WriteLine("\tDVA 2:");
+                printDva(blkptr.dva2);
+                Console.WriteLine("\tDVA 3:");
+                printDva(blkptr.dva3);
+            }
+        }
+
         static void Main(string[] args)
         {
+            const string STUFF = @"";
+
+            var bytes = STUFF.Split(new char[] { ' ', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(ch => byte.Parse(ch, NumberStyles.HexNumber)).ToArray();
+            Debug.Assert(bytes.Length == 128);
+
+            var blkptr = ZfsSharpLib.Program.ToStruct<blkptr_t>(bytes);
+            printBlockPointer(blkptr);
+
+            return;
+
             if (args.Length == 0)
             {
                 Console.WriteLine("Usage: ZfsSharp.exe <a directory containing VHD, VHDX, VDI, or ZFS files>");
