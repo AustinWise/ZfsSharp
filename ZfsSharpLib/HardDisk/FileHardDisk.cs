@@ -15,7 +15,11 @@ namespace ZfsSharpLib.HardDisks
         {
             mFile = MemoryMappedFile.CreateFromFile(path, FileMode.Open);
             mViewAcessor = mFile.CreateViewAccessor();
-            mSize = mViewAcessor.Capacity;
+            long fileSize = new FileInfo(path).Length;
+            //Limit the range of data we read to the Capacity of the ViewAccessor
+            //in the unlikly case that it is smaller than the file size we read.
+            //We can't just use the Capacity though, as it is round up to the page size.
+            mSize = Math.Min(mViewAcessor.Capacity, fileSize);
             mPointer = null;
             mViewAcessor.SafeMemoryMappedViewHandle.AcquirePointer(ref mPointer);
         }
@@ -33,6 +37,7 @@ namespace ZfsSharpLib.HardDisks
 
         public override void Dispose()
         {
+            mPointer = null;
             mViewAcessor.SafeMemoryMappedViewHandle.ReleasePointer();
             mViewAcessor.Dispose();
             mFile.Dispose();
