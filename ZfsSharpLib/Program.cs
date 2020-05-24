@@ -75,6 +75,18 @@ namespace ZfsSharpLib
             return Unsafe.Read<T>(ptr + offset);
         }
 
+        public static T ToStructFromBigEndian<T>(byte[] bytes) where T : struct
+        {
+            if (BitConverter.IsLittleEndian)
+            {
+                return ToStructByteSwap<T>(bytes);
+            }
+            else
+            {
+                return ToStruct<T>(bytes);
+            }
+        }
+
         public static T ToStructByteSwap<T>(byte[] bytes) where T : struct
         {
             var copy = new byte[bytes.Length];

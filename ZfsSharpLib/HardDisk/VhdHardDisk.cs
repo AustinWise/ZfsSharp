@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections;
+using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 
 namespace ZfsSharpLib.HardDisks
@@ -110,26 +110,23 @@ namespace ZfsSharpLib.HardDisks
         }
         #endregion
 
-        static VhdHeader GetHeader(HardDisk hdd)
-        {
-            return Program.ToStructByteSwap<VhdHeader>(hdd.ReadBytes(hdd.Length - 512, 512));
-        }
-
         public static HardDisk Create(HardDisk hdd)
         {
-            VhdHeader head = GetHeader(hdd);
+            byte[] headBytes = hdd.ReadBytes(hdd.Length - 512, 512);
+            VhdHeader head = Program.ToStructFromBigEndian<VhdHeader>(headBytes);
             if (head.CookieStr != "conectix")
                 throw new Exception("missing magic string");
             if (head.FileFormatVersion != 0x00010000)
                 throw new Exception("upsupported version");
+            //TODO: validate checksum
 
             if (head.DiskType == DiskType.Fixed)
             {
-                return new FixedVhd(hdd);
+                return new FixedVhd(hdd, in head);
             }
             else if (head.DiskType == DiskType.Dynamic)
             {
-                return new DynamicVhd(hdd);
+                return new DynamicVhd(hdd, in head);
             }
             else
             {
@@ -139,10 +136,9 @@ namespace ZfsSharpLib.HardDisks
 
         class FixedVhd : OffsetHardDisk
         {
-            public FixedVhd(HardDisk hdd)
+            public FixedVhd(HardDisk hdd, in VhdHeader head)
             {
                 long size = hdd.Length - 512;
-                var head = GetHeader(hdd);
 
                 if (head.CurrentSize != size)
                     throw new Exception();
@@ -157,34 +153,36 @@ namespace ZfsSharpLib.HardDisks
 
             long mSize;
 
-            public DynamicVhd(HardDisk hdd)
+            public DynamicVhd(HardDisk hdd, in VhdHeader head)
                 : base(hdd)
             {
-                VhdHeader head = GetHeader(hdd);
                 int dySize = Program.SizeOf<DynamicHeader>();
-                DynamicHeader dyhead = Program.ToStructByteSwap<DynamicHeader>(hdd.ReadBytes(head.DataOffset, dySize));
+                DynamicHeader dyhead = Program.ToStructFromBigEndian<DynamicHeader>(hdd.ReadBytes(head.DataOffset, dySize));
                 if (dyhead.CookieStr != "cxsparse")
                     throw new Exception("missing magic string");
                 if (dyhead.HeaderVersion != 0x00010000)
                     throw new NotSupportedException("wrong version");
                 if (dyhead.ParentUniqueID != Guid.Empty)
                     throw new NotSupportedException("Differencing disks not supported.");
+                //TODO: validate checksum
 
                 mSize = head.CurrentSize;
                 mBlockSize = dyhead.BlockSize;
+                if (mBlockSize % SECTOR_SIZE != 0)
+                    throw new Exception("Block size is not a multiple of sector size.");
                 int sectorBitmapSize = (mBlockSize / SECTOR_SIZE) / 8;
 
-                int numberOfBlocks = (int)(mSize / mBlockSize);
-                if (numberOfBlocks > dyhead.MaxTableEntries)
-                    throw new Exception();
+                //Round up if we have a partial block
+                int numberOfBlocks = (int)((mSize + mBlockSize - 1) / mBlockSize);
+                if (numberOfBlocks != dyhead.MaxTableEntries)
+                    throw new Exception("Our calculated number of blocks does not match the MaxTableEntries. Is that right?");
                 mBlockOffsets = new long[numberOfBlocks];
 
                 var bat = hdd.ReadBytes(dyhead.TableOffset, numberOfBlocks * 4);
 
                 for (int i = 0; i < numberOfBlocks; i++)
                 {
-                    Program.ByteSwap(typeof(int), bat, i * 4);
-                    long batEntry = Program.ToStruct<int>(bat, i * 4);
+                    long batEntry = BinaryPrimitives.ReadInt32BigEndian(new ReadOnlySpan<byte>(bat, i * 4, 4));
                     if (batEntry != -1)
                     {
                         batEntry *= SECTOR_SIZE;
