@@ -1,7 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace ZfsSharpLib
 {
@@ -11,10 +10,20 @@ namespace ZfsSharpLib
         readonly Zio mZio;
         readonly dmu_objset_type_t mType;
 
-        public ObjectSet(Zio zio, objset_phys_t os)
+        public ObjectSet(Zio zio, blkptr_t bp)
         {
             if (zio == null)
                 throw new ArgumentNullException("zio");
+            
+            var bytes = zio.ReadBytes(bp);
+
+            if (bytes.Length != objset_phys_t.OBJSET_PHYS_SIZE_V1
+                && bytes.Length != objset_phys_t.OBJSET_PHYS_SIZE_V2
+                && bytes.Length != objset_phys_t.OBJSET_PHYS_SIZE_V3)
+                throw new ArgumentOutOfRangeException();
+            
+            objset_phys_t os = default;
+            bytes.CopyTo(MemoryMarshal.AsBytes(new Span<objset_phys_t>(ref os)));
 
             mZio = zio;
             mType = os.Type;

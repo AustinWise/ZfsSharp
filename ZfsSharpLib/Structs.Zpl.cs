@@ -91,6 +91,8 @@ namespace ZfsSharpLib
         ZPL_SYMLINK,
         ZPL_SCANSTAMP,
         ZPL_DACL_ACES,
+        ZPL_DXATTR,
+        ZPL_PROJID,
         //ZPL_END
     }
 }

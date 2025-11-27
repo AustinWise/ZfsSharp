@@ -51,7 +51,7 @@ namespace ZfsSharpLib
 
             if (headDs.bp.Type != dmu_object_type_t.OBJSET)
                 throw new Exception("Expected OBJSET.");
-            var headDsObjset = zio.Get<objset_phys_t>(headDs.bp);
+            var headDsObjset = new ObjectSet(zio, headDs.bp);
             switch (headDsObjset.Type)
             {
                 case dmu_objset_type_t.DMU_OST_ZFS:

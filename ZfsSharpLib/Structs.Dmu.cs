@@ -6,16 +6,21 @@ namespace ZfsSharpLib
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     unsafe struct objset_phys_t
     {
-        public const int OBJSET_PHYS_SIZE = 2048;
+        public const int OBJSET_PHYS_SIZE_V1 = 1024;
+        public const int OBJSET_PHYS_SIZE_V2 = 2048;
+        public const int OBJSET_PHYS_SIZE_V3 = 4096;
 
         public dnode_phys_t MetaDnode;
         public zil_header_t ZilHeader;
         public dmu_objset_type_t Type;
         public ulong Flags;
-        fixed byte os_pad[OBJSET_PHYS_SIZE - (1 << dnode_phys_t.DNODE_SHIFT) * 3 -
+        fixed byte os_pad0[OBJSET_PHYS_SIZE_V2 - (1 << dnode_phys_t.DNODE_SHIFT) * 3 -
             zil_header_t.SIZE - sizeof(ulong) * 2];
         public dnode_phys_t UserUsedDnode;
         public dnode_phys_t GroupUsedDnode;
+        public dnode_phys_t ProjectusedDnode;
+        fixed byte os_pad1[OBJSET_PHYS_SIZE_V3 - OBJSET_PHYS_SIZE_V2 -
+            (1 << dnode_phys_t.DNODE_SHIFT)];
     }
 
     enum dmu_objset_type_t : long

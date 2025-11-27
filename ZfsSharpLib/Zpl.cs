@@ -44,7 +44,7 @@ namespace ZfsSharpLib
                 var someProps = Zap.Parse(mos, mDataset.props_obj);
             }
 
-            mZfsObjset = new ObjectSet(mZio, zio.Get<objset_phys_t>(mDataset.bp));
+            mZfsObjset = new ObjectSet(mZio, mDataset.bp);
             if (mZfsObjset.Type != dmu_objset_type_t.DMU_OST_ZFS)
                 throw new NotSupportedException();
             mZfsObjDir = Zap.GetDirectoryEntries(mZfsObjset, 1);
@@ -58,10 +58,11 @@ namespace ZfsSharpLib
             mAttrSize = new Dictionary<zpl_attr_t, int>();
             foreach (var kvp in saRegistry)
             {
-                var attrName = (zpl_attr_t)(kvp.Value & 0xffff);
+                var attrId = kvp.Value & 0xffff;
+                var attrName = (zpl_attr_t)attrId;
+                if (!Enum.IsDefined(attrName))
+                    throw new Exception("Unknown zpl_attr_t value: " + attrId);
                 var size = (int)(kvp.Value >> 24 & 0xffff);
-                if (kvp.Key != attrName.ToString())
-                    throw new Exception();
                 mAttrSize.Add(attrName, size);
             }
 

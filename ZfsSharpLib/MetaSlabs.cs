@@ -23,7 +23,6 @@ namespace ZfsSharpLib
             Buffer.BlockCopy(someBytes.Array, someBytes.Offset, ids, 0, someBytes.Count);
 
             Program.ReturnBytes(someBytes);
-            someBytes = default(ArraySegment<byte>);
 
             for (int i = 0; i < numberOfSlabs; i++)
             {
@@ -72,9 +71,9 @@ namespace ZfsSharpLib
                 if (ent.IsDebug)
                     continue;
 
-                ulong offset = (ent.Offset << sm_shift);
+                ulong offset = ent.Offset << sm_shift;
                 ulong range = ent.Run << sm_shift;
-                //Console.WriteLine("\t    [{4,6}]    {0}  range: {1:x10}-{2:x10}  size: {3:x6}", ent.Type, offset, offset + range, range, i / 8);
+                // Console.WriteLine("\t    [{4,6}]    {0}  range: {1:x10}-{2:x10}  size: {3:x6}", ent.Type, offset, offset + range, range, i / 8);
                 if (ent.Type == SpaceMapEntryType.A)
                 {
                     ret.AddRange(offset, range);

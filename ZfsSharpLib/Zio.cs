@@ -137,6 +137,13 @@ namespace ZfsSharpLib
             Read(blkptr, blkptr.dva1, dest);
         }
 
+        public byte[] ReadBytes(blkptr_t blkptr)
+        {
+            var bytes = new byte[blkptr.LogicalSizeBytes];
+            Read(blkptr, bytes);
+            return bytes;
+        }
+
         private static zio_cksum_t CalculateGangChecksumVerifier(ref blkptr_t blkptr)
         {
             var ret = new zio_cksum_t();

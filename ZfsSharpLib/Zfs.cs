@@ -19,6 +19,8 @@ namespace ZfsSharpLib
             "com.delphix:extensible_dataset", //this means a DSL_DATASET DN contains ZAP entries
             "org.illumos:lz4_compress",
             "com.delphix:embedded_data",
+            "com.klarasystems:vdev_zaps_v2", // An extra ZAP for storing properties on the root VDev.
+            "com.delphix:head_errlog", // We don't read the error log, so we ignore this.
         });
 
         List<LeafVdevInfo> mHdds;
@@ -27,9 +29,9 @@ namespace ZfsSharpLib
         NvList mConfig;
         ObjectSet mMos;
 
-        static void assertStructSize<T>(int size)
+        static unsafe void assertStructSize<T>(int size) where T : unmanaged
         {
-            int messuredSize = Program.SizeOf<T>();
+            int messuredSize = sizeof(T);
             System.Diagnostics.Debug.Assert(messuredSize == size);
         }
 
@@ -39,6 +41,7 @@ namespace ZfsSharpLib
         {
             //make sure we correctly set the size of structs
             assertStructSize<zio_gbh_phys_t>(zio_gbh_phys_t.SPA_GANGBLOCKSIZE);
+            assertStructSize<objset_phys_t>(objset_phys_t.OBJSET_PHYS_SIZE_V3);
 
             mHdds = LeafVdevInfo.GetLeafVdevs(directoryOrFile);
 
@@ -85,13 +88,14 @@ namespace ZfsSharpLib
 
             mZio = new Zio(vdevs);
 
-            mMos = new ObjectSet(mZio, mZio.Get<objset_phys_t>(ub.rootbp));
+            mMos = new ObjectSet(mZio, ub.rootbp);
             if (mMos.Type != dmu_objset_type_t.DMU_OST_META)
                 throw new Exception("Given block pointer did not point to the MOS.");
 
-            mZio.InitMetaSlabs(mMos);
+            // TODO: debug why we are reading outside allocated space. I'm guessing it's because of the LOG_SPACEMAP feature.
+            // mZio.InitMetaSlabs(mMos);
             //the second time we will make sure that space maps contain themselves
-            mZio.InitMetaSlabs(mMos);
+            // mZio.InitMetaSlabs(mMos);
 
             var objectDirectory = mMos.ReadEntry(1);
             //The MOS's directory sometimes has things that don't like like directory entries.
@@ -145,10 +149,11 @@ namespace ZfsSharpLib
                 throw new Exception("Unknown state: " + state);
 
             var features = cfg.Get<NvList>("features_for_read");
-            foreach (var kvp in features)
+            var unsupportedFeatures = features.Where(kvp => (bool)kvp.Value && !sSupportReadFeatures.Contains(kvp.Key)).ToList();
+            if (unsupportedFeatures.Count > 0)
             {
-                if (!sSupportReadFeatures.Contains(kvp.Key))
-                    throw new Exception("Unsupported feature: " + kvp.Key);
+                var featureNames = string.Join(", ", unsupportedFeatures.Select(kvp => kvp.Key));
+                throw new Exception("Unsupported features: " + featureNames);
             }
         }
 
