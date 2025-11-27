@@ -373,8 +373,6 @@ namespace ZfsSharpLib
 
             public void GetContents(Span<byte> buffer, long offset)
             {
-                if (buffer == null)
-                    throw new ArgumentNullException(nameof(buffer));
                 if (offset < 0)
                     throw new ArgumentOutOfRangeException(nameof(offset), "Offset must note be negitive.");
                 if (offset + buffer.Length > Length)

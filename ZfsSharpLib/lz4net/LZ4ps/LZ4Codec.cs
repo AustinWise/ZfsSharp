@@ -159,12 +159,10 @@ namespace LZ4ps
 				return;
 			}
 
-			if (input == null) throw new ArgumentNullException("input");
 			if (inputOffset < 0 || inputOffset + inputLength > input.Length)
 				throw new ArgumentException("inputOffset and inputLength are invalid for given input");
 
 			if (outputLength < 0) outputLength = output.Length - outputOffset;
-			if (output == null) throw new ArgumentNullException("output");
 			if (outputOffset < 0 || outputOffset + outputLength > output.Length)
 				throw new ArgumentException("outputOffset and outputLength are invalid for given output");
 		}
