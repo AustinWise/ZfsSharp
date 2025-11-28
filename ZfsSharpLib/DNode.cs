@@ -21,7 +21,7 @@ namespace ZfsSharpLib
             mPhys = phys;
         }
 
-        public dmu_object_type_t Type
+        public ObjectType Type
         {
             get { return mPhys.Type; }
         }
@@ -29,16 +29,6 @@ namespace ZfsSharpLib
         public dmu_object_type_t BonusType
         {
             get { return mPhys.BonusType; }
-        }
-
-        public bool IsNewType
-        {
-            get { return mPhys.IsNewType; }
-        }
-
-        public dmu_object_byteswap NewType
-        {
-            get { return mPhys.NewType; }
         }
 
         public int BlockSizeInBytes

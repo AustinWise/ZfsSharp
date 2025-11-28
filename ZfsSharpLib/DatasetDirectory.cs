@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Metadata;
 
 namespace ZfsSharpLib
 {
@@ -19,7 +20,7 @@ namespace ZfsSharpLib
             this.Type = DataSetType.MetaData;
 
             var rootDslObj = mos.ReadEntry(objectid);
-            if (rootDslObj.Type != dmu_object_type_t.DSL_DIR)
+            if (rootDslObj.Type.LegacyType != dmu_object_type_t.DSL_DIR)
                 throw new NotSupportedException("Expected DSL_DIR dnode.");
             if (rootDslObj.BonusType != dmu_object_type_t.DSL_DIR)
                 throw new NotSupportedException("Expected DSL_DIR bonus.");
@@ -105,7 +106,20 @@ namespace ZfsSharpLib
 
         internal static bool IsDataSet(DNode dn)
         {
-            return dn.Type == dmu_object_type_t.DSL_DATASET || (dn.IsNewType && dn.NewType == dmu_object_byteswap.DMU_BSWAP_ZAP);
+            var legacyType = dn.Type.LegacyType;
+            if (legacyType == dmu_object_type_t.DSL_DATASET)
+            {
+                return true;
+            }
+            else if (legacyType == dmu_object_type_t.NONE)
+            {
+                // new type of object type
+                return dn.Type.Byteswap == dmu_object_byteswap.ZAP;
+            }
+            else
+            {
+                return false;
+            }
         }
     }
 }

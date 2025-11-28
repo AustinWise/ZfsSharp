@@ -57,18 +57,16 @@ namespace ZfsSharpLib
 
     enum dmu_object_byteswap
     {
-        DMU_BSWAP_UINT8,
-        DMU_BSWAP_UINT16,
-        DMU_BSWAP_UINT32,
-        DMU_BSWAP_UINT64,
-        DMU_BSWAP_ZAP,
-        DMU_BSWAP_DNODE,
-        DMU_BSWAP_OBJSET,
-        DMU_BSWAP_ZNODE,
-        DMU_BSWAP_OLDACL,
-        DMU_BSWAP_ACL,
-
-        DMU_BSWAP_NUMFUNCS
+        UINT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        ZAP,
+        DNODE,
+        OBJSET,
+        ZNODE,
+        OLDACL,
+        ACL,
     }
 
     enum dmu_object_type_t : byte
@@ -136,35 +134,6 @@ namespace ZfsSharpLib
         DEADLIST_HDR,		/* UINT64 */
         DSL_CLONES,		/* ZAP */
         BPOBJ_SUBOBJ,		/* UINT64 */
-        /*
-         * Do not allocate new object types here. Doing so makes the on-disk
-         * format incompatible with any other format that uses the same object
-         * type number.
-         *
-         * When creating an object which does not have one of the above types
-         * use the DMU_OTN_* type with the correct byteswap and metadata
-         * values.
-         *
-         * The DMU_OTN_* types do not have entries in the dmu_ot table,
-         * use the DMU_OT_IS_METDATA() and DMU_OT_BYTESWAP() macros instead
-         * of indexing into dmu_ot directly (this works for both DMU_OT_* types
-         * and DMU_OTN_* types).
-         */
-        DMU_OT_NUMTYPES,
-
-        /*
-         * Names for valid types declared with DMU_OT().
-         */
-        //DMU_OTN_UINT8_DATA = DMU_OT(DMU_BSWAP_UINT8, B_FALSE),
-        //DMU_OTN_UINT8_METADATA = DMU_OT(DMU_BSWAP_UINT8, B_TRUE),
-        //DMU_OTN_UINT16_DATA = DMU_OT(DMU_BSWAP_UINT16, B_FALSE),
-        //DMU_OTN_UINT16_METADATA = DMU_OT(DMU_BSWAP_UINT16, B_TRUE),
-        //DMU_OTN_UINT32_DATA = DMU_OT(DMU_BSWAP_UINT32, B_FALSE),
-        //DMU_OTN_UINT32_METADATA = DMU_OT(DMU_BSWAP_UINT32, B_TRUE),
-        //DMU_OTN_UINT64_DATA = DMU_OT(DMU_BSWAP_UINT64, B_FALSE),
-        //DMU_OTN_UINT64_METADATA = DMU_OT(DMU_BSWAP_UINT64, B_TRUE),
-        //DMU_OTN_ZAP_DATA = DMU_OT(DMU_BSWAP_ZAP, B_FALSE),
-        //DMU_OTN_ZAP_METADATA = DMU_OT(DMU_BSWAP_ZAP, B_TRUE),
     }
 
     [Flags]
@@ -205,26 +174,13 @@ namespace ZfsSharpLib
          * Type
          */
 
-        public bool IsNewType
-        {
-            get { return ((uint)Type & 0x80) != 0; }
-        }
-
-        public bool IsNewTypeMetaData
-        {
-            get { return ((uint)Type & 0x40) != 0; }
-        }
-
-        public dmu_object_byteswap NewType
-        {
-            get { return (dmu_object_byteswap)((uint)Type & 0x3f); }
-        }
+        public ObjectType Type => new ObjectType(mType);
 
         /*
          * Fields
          */
         [FieldOffset(0)]
-        public dmu_object_type_t Type;
+        byte mType;
         [FieldOffset(1)]
         public byte IndirectBlockShift;
         [FieldOffset(2)]

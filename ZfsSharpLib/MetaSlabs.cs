@@ -52,7 +52,7 @@ namespace ZfsSharpLib
             RangeMap ret = new RangeMap();
 
             var dn = mMos.ReadEntry(dnEntry);
-            if (dn.Type != dmu_object_type_t.SPACE_MAP || dn.BonusType != dmu_object_type_t.SPACE_MAP_HEADER)
+            if (dn.Type.LegacyType != dmu_object_type_t.SPACE_MAP || dn.BonusType != dmu_object_type_t.SPACE_MAP_HEADER)
                 throw new Exception("Not a space map.");
 
             var head = dn.GetBonus<space_map_obj>();

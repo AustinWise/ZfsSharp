@@ -28,7 +28,7 @@ namespace ZfsSharpLib
                 throw new Exception("Not a DSL_DIR.");
             mDataset = rootDataSetObj.GetBonus<dsl_dataset_phys_t>();
 
-            if (rootDataSetObj.IsNewType && rootDataSetObj.NewType == dmu_object_byteswap.DMU_BSWAP_ZAP)
+            if (rootDataSetObj.Type.Byteswap == dmu_object_byteswap.ZAP)
             {
                 var dataSetExtensions = Zap.Parse(rootDataSetObj);
             }
@@ -280,7 +280,7 @@ namespace ZfsSharpLib
                 this.Name = name;
                 this.Parent = parent;
                 this.mDn = dn;
-                if (mDn.Type != DmuType)
+                if (mDn.Type.LegacyType != DmuType)
                     throw new NotSupportedException();
 
                 mMode = attrs.Get<long>(zpl_attr_t.ZPL_MODE);
@@ -451,9 +451,9 @@ namespace ZfsSharpLib
 
                     using (var saAttrs = this.mZpl.RentAttrBytes(dn))
                     {
-                        if (dn.Type == dmu_object_type_t.DIRECTORY_CONTENTS)
+                        if (dn.Type.LegacyType == dmu_object_type_t.DIRECTORY_CONTENTS)
                             yield return new ZfsDirectory(mZpl, this, name, dn, saAttrs);
-                        else if (dn.Type == dmu_object_type_t.PLAIN_FILE_CONTENTS)
+                        else if (dn.Type.LegacyType == dmu_object_type_t.PLAIN_FILE_CONTENTS)
                         {
                             if (type == ZfsItemType.None)
                                 type = mZpl.GetFileType(saAttrs);
