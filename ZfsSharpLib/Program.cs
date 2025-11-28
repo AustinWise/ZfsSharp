@@ -35,6 +35,15 @@ namespace ZfsSharpLib
             sBytePool.Return(buffer.Array);
         }
 
+        public static string ReadZeroTerminatedString(Span<byte> bytes)
+        {
+            if (bytes[bytes.Length - 1] != 0)
+            {
+                throw new ArgumentException("The given byte span is not zero terminated.");
+            }
+            return System.Text.Encoding.UTF8.GetString(bytes.Slice(0, bytes.Length - 1));
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int SizeOf<T>()
         {

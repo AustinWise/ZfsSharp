@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using ZfsSharpLib.VirtualDevices;
@@ -64,7 +65,7 @@ namespace ZfsSharpLib
             if (mHdds.Count == 0)
                 throw new Exception("Did not find any hard drives.");
 
-            //make sure we support reading the pool
+            //make sure we support enough features to read the MOS
             foreach (var hdd in mHdds)
             {
                 CheckVersion(hdd.Config);
@@ -92,7 +93,11 @@ namespace ZfsSharpLib
             if (mMos.Type != dmu_objset_type_t.DMU_OST_META)
                 throw new Exception("Given block pointer did not point to the MOS.");
 
-            // TODO: debug why we are reading outside allocated space. I'm guessing it's because of the LOG_SPACEMAP feature.
+            // Changes to how space maps work are treated as "features required to write" for the purposes of OpenZFS.
+            // So we don't need to be able to read them to read data. But they act as as sanity check that we are reading
+            // allocated data.
+            // TODO: implement reading space map logs to be able to reenable this.
+            // TODO: implement spacemap v2 to reenable this.
             // mZio.InitMetaSlabs(mMos);
             //the second time we will make sure that space maps contain themselves
             // mZio.InitMetaSlabs(mMos);
@@ -101,12 +106,6 @@ namespace ZfsSharpLib
             //The MOS's directory sometimes has things that don't like like directory entries.
             //For example, the "scan" entry has scrub status stuffed into as an array of longs.
             mObjDir = Zap.GetDirectoryEntries(objectDirectory, true);
-
-            if (mObjDir.ContainsKey(DDT_STATISTICS))
-            {
-                var ddtStats = Zap.Parse(mMos.ReadEntry(mObjDir[DDT_STATISTICS]));
-                //TODO: maybe do something interesting with the stats
-            }
 
             {
                 var configDn = mMos.ReadEntry(mObjDir[CONFIG]);
@@ -124,12 +123,13 @@ namespace ZfsSharpLib
         {
             var fr = Zap.GetDirectoryEntries(mMos, mObjDir["features_for_read"]);
             var fw = Zap.GetDirectoryEntries(mMos, mObjDir["features_for_write"]);
-            var ff = Zap.Parse(mMos.ReadEntry(mObjDir["feature_descriptions"])).ToDictionary(kvp => kvp.Key, kvp => Encoding.ASCII.GetString((byte[])kvp.Value));
+            var ff = Zap.Parse(mMos.ReadEntry(mObjDir["feature_descriptions"])).ToDictionary(kvp => kvp.Key, kvp => Program.ReadZeroTerminatedString((byte[])kvp.Value));
             if (fw.ContainsKey("com.delphix:enabled_txg") && fw["com.delphix:enabled_txg"] > 0)
             {
                 var fe = Zap.GetDirectoryEntries(mMos, mObjDir["feature_enabled_txg"]);
             }
 
+            // make sure we support all features required to read the pool, which can include features beyond those needed for the MOS.
             foreach (var feature in fr)
             {
                 if (feature.Value != 0 && !sSupportReadFeatures.Contains(feature.Key))

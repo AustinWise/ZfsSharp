@@ -60,8 +60,8 @@ namespace ZfsSharpLib
             if (head.smo_object != dnEntry)
                 throw new Exception();
 
-            if (head.smo_objsize > int.MaxValue)
-                throw new Exception("Holy cow, this space map is greater than 2GB, what is wrong with your VDev!?!?");
+            if (head.smo_objsize > Array.MaxLength)
+                throw new Exception("Holy cow, this space map is huge, what is wrong with your VDev!?!?");
 
             var someBytes = Program.RentBytes((int)head.smo_objsize);
             dn.Read(someBytes, 0);
