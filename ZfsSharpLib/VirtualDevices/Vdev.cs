@@ -70,13 +70,35 @@ namespace ZfsSharpLib.VirtualDevices
 
         public static Vdev[] CreateVdevTree(List<LeafVdevInfo> hdds)
         {
+            if (hdds.Count == 0)
+                throw new ArgumentOutOfRangeException("No hard drives provided.");
+
             var hddMap = new Dictionary<ulong, LeafVdevInfo>();
             var innerVdevConfigs = new Dictionary<ulong, NvList>();
+            ulong numberOfChildren = 0;
             foreach (var hdd in hdds)
             {
+                ulong hddNumberOfChildren = hdd.Config.Get<ulong>("vdev_children");
+                if (hddNumberOfChildren == 0)
+                {
+                    throw new Exception("Hard drive vdev has zero children?!");
+                }
+                else if (numberOfChildren == 0)
+                {
+                    numberOfChildren = hddNumberOfChildren;
+                }
+                else if (numberOfChildren != hddNumberOfChildren)
+                {
+                    throw new Exception("Hard drives do not agree on number of vdev children.");
+                }
                 hddMap.Add(hdd.Config.Get<ulong>("guid"), hdd);
                 var vdevTree = hdd.Config.Get<NvList>("vdev_tree");
                 innerVdevConfigs[vdevTree.Get<ulong>("guid")] = vdevTree;
+            }
+
+            if (innerVdevConfigs.Count != (int)numberOfChildren)
+            {
+                throw new Exception($"We found {innerVdevConfigs.Count} but expected {numberOfChildren}.");
             }
 
             var innerVdevs = new List<Vdev>();
