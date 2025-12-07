@@ -19,6 +19,7 @@ namespace ZfsSharpLib
             "com.delphix:hole_birth", //as far as I can tell this just means that hole block pointers will have their birth fields filled in
             "com.delphix:extensible_dataset", //this means a DSL_DATASET DN contains ZAP entries
             "org.illumos:lz4_compress",
+            "org.freebsd:zstd_compress",
             "com.delphix:embedded_data",
             "com.klarasystems:vdev_zaps_v2", // An extra ZAP for storing properties on the root VDev.
             "com.delphix:head_errlog", // We don't read the error log, so we ignore this.

@@ -356,6 +356,7 @@ namespace ZfsSharpLib
         GZIP_9,
         ZLE,
         LZ4,
+        ZSTD,
         FUNCTIONS
     }
 

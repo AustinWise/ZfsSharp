@@ -49,6 +49,7 @@ namespace ZfsSharpLib
             mCompression.Add(zio_compress.LZJB, new Lzjb());
             mCompression.Add(zio_compress.OFF, new NoCompression());
             mCompression.Add(zio_compress.LZ4, new LZ4());
+            mCompression.Add(zio_compress.ZSTD, new ZStd());
 
             var gz = new GZip();
             for (int i = (int)zio_compress.GZIP_1; i <= (int)zio_compress.GZIP_9; i++)
