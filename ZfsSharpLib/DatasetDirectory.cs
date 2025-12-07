@@ -20,12 +20,18 @@ namespace ZfsSharpLib
             this.Type = DataSetType.MetaData;
 
             var rootDslObj = mos.ReadEntry(objectid);
-            if (rootDslObj.Type.LegacyType != dmu_object_type_t.DSL_DIR)
-                throw new NotSupportedException("Expected DSL_DIR dnode.");
             if (rootDslObj.BonusType != dmu_object_type_t.DSL_DIR)
                 throw new NotSupportedException("Expected DSL_DIR bonus.");
             mDslDir = rootDslObj.GetBonus<dsl_dir_phys_t>();
             var rootDslProps = Zap.Parse(mos, mDslDir.props_zapobj);
+
+            if (rootDslObj.Type.Byteswap == dmu_object_byteswap.ZAP)
+            {
+                // As part of the extensible dataset feature flag,
+                // the DSL dir can also have extensible properties.
+                // This is used for a handful of features like encryption, snapshot limits, and live lists (for clone deletion performance).
+                var extensibleDslDirPropertiesProperties = Zap.Parse(rootDslObj);
+            }
 
             Dictionary<string, long> clones;
             if (mDslDir.clones != 0)
