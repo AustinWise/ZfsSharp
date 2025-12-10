@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -33,34 +35,52 @@ namespace ZfsSharpLib
         const int SPA_MINBLOCKSHIFT = 9;
         public const int SPA_MINBLOCKSIZE = 1 << SPA_MINBLOCKSHIFT; //512 bytes. ASIZE, LSIZE, and PSIZE are multiples of this.
 
-        private Vdev[] mVdevs;
-        //TODO: change these not to use a dictionary so lookup is faster
-        private Dictionary<zio_checksum, IChecksum> mChecksums = new Dictionary<zio_checksum, IChecksum>();
-        private Dictionary<zio_compress, ICompression> mCompression = new Dictionary<zio_compress, ICompression>();
+        private readonly Vdev[] mVdevs;
+        private readonly IChecksum?[] mChecksums;
+        private readonly ICompression?[] mCompression;
 
         public Zio(Vdev[] vdevs)
         {
             mVdevs = vdevs;
+            mChecksums = new IChecksum[(int)zio_checksum.FUNCTIONS];
+            mCompression = new ICompression[(int)zio_compress.FUNCTIONS];
 
-            mChecksums.Add(zio_checksum.OFF, new NoChecksum());
-            mChecksums.Add(zio_checksum.FLETCHER_4, new Flecter4());
-            mChecksums.Add(zio_checksum.SHA256, new Sha256());
+            mChecksums[(int)zio_checksum.OFF] = new NoChecksum();
+            mChecksums[(int)zio_checksum.FLETCHER_4] = new Flecter4();
+            mChecksums[(int)zio_checksum.SHA256] = new Sha256();
 
-            mCompression.Add(zio_compress.LZJB, new Lzjb());
-            mCompression.Add(zio_compress.OFF, new NoCompression());
-            mCompression.Add(zio_compress.LZ4, new LZ4());
-            mCompression.Add(zio_compress.ZSTD, new ZStd());
+            mCompression[(int)zio_compress.LZJB] = new Lzjb();
+            mCompression[(int)zio_compress.OFF] = new NoCompression();
+            mCompression[(int)zio_compress.LZ4] = new LZ4();
+            mCompression[(int)zio_compress.ZSTD] = new ZStd();
 
             var gz = new GZip();
             for (int i = (int)zio_compress.GZIP_1; i <= (int)zio_compress.GZIP_9; i++)
             {
-                mCompression[(zio_compress)i] = gz;
+                mCompression[i] = gz;
             }
         }
 
-        void LogChecksumError()
+        private IChecksum GetChecksum(in blkptr_t blkptr)
         {
-            //TODO: raise an event or something
+            int ndx = (byte)blkptr.Checksum;
+            if (ndx > mChecksums.Length)
+                throw new Exception("Checksum type out of range: " + blkptr.Checksum);
+            IChecksum? checksumAlgo = mChecksums[ndx];
+            if (checksumAlgo is null)
+                throw new NotImplementedException("Unimplemented checksum algorithm: " + blkptr.Checksum);
+            return checksumAlgo;
+        }
+
+        private ICompression GetCompression(in blkptr_t blkptr)
+        {
+            int ndx = (byte)blkptr.Compress;
+            if (ndx > mCompression.Length)
+                throw new Exception("Compression type out of range: " + blkptr.Compress);
+            ICompression? checksumAlgo = mCompression[ndx];
+            if (checksumAlgo is null)
+                throw new NotImplementedException("Unimplemented compression algorithm: " + blkptr.Compress);
+            return checksumAlgo;
         }
 
         //a bit of a layering violation
@@ -105,7 +125,8 @@ namespace ZfsSharpLib
                 }
             }
 
-            mCompression[blkptr.Compress].Decompress(physicalBytes, dest);
+            ICompression comp = GetCompression(in blkptr);
+            comp.Decompress(physicalBytes, dest);
             Program.ReturnBytes(physicalBytes);
         }
 
@@ -211,25 +232,20 @@ namespace ZfsSharpLib
         {
             if (dva.IsGang && blkptr.Compress != zio_compress.OFF)
             {
-                throw new Exception("A compressed gang block? It seems redundent to decompress twice.");
+                throw new Exception("A compressed gang block? It seems redundant to decompress twice.");
             }
 
             var physicalBytes = ReadPhysical(blkptr, dva);
-            try
+            IChecksum checksumAlgo = GetChecksum(in blkptr);
+            var chk = checksumAlgo.Calculate(physicalBytes);
+            if (!chk.Equals(blkptr.cksum))
             {
-                var chk = mChecksums[blkptr.Checksum].Calculate(physicalBytes);
-                if (!chk.Equals(blkptr.cksum))
-                {
-                    LogChecksumError();
-                    throw new Exception("Could not find a correct copy of the requested data.");
-                }
+                throw new Exception("Could not find a correct copy of the requested data.");
+            }
 
-                mCompression[blkptr.Compress].Decompress(physicalBytes, dest);
-            }
-            finally
-            {
-                Program.ReturnBytes(physicalBytes);
-            }
+            ICompression compressionAlgo = GetCompression(in blkptr);
+            compressionAlgo.Decompress(physicalBytes, dest);
+            Program.ReturnBytes(physicalBytes);
         }
 
         public unsafe T Get<T>(blkptr_t blkptr) where T : struct
@@ -249,11 +265,11 @@ namespace ZfsSharpLib
 
     interface IChecksum
     {
-        zio_cksum_t Calculate(ArraySegment<byte> input);
+        zio_cksum_t Calculate(ReadOnlySpan<byte> input);
     }
 
     interface ICompression
     {
-        void Decompress(Span<byte> input, Span<byte> output);
+        void Decompress(ReadOnlySpan<byte> input, Span<byte> output);
     }
 }

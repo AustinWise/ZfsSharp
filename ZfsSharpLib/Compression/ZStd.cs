@@ -20,7 +20,7 @@ class ZStd : ICompression
         public uint raw_version_level;
     }
 
-    public unsafe void Decompress(Span<byte> input, Span<byte> output)
+    public unsafe void Decompress(ReadOnlySpan<byte> input, Span<byte> output)
     {
         var header = MemoryMarshal.Read<zfs_zstd_header>(input);
         uint compressedLength = header.c_len;

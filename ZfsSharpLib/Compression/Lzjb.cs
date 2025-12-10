@@ -12,7 +12,7 @@ namespace ZfsSharpLib
         const int OFFSET_MASK = ((1 << (16 - MATCH_BITS)) - 1);
         const int LEMPEL_SIZE = 1024;
 
-        public unsafe void Decompress(Span<byte> input, Span<byte> output)
+        public unsafe void Decompress(ReadOnlySpan<byte> input, Span<byte> output)
         {
             fixed (byte* s_start = input)
             {

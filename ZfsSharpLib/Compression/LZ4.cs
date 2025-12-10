@@ -5,7 +5,7 @@ namespace ZfsSharpLib
 {
     class LZ4 : ICompression
     {
-        public void Decompress(Span<byte> input, Span<byte> output)
+        public void Decompress(ReadOnlySpan<byte> input, Span<byte> output)
         {
             var bufsiz = input[0] << 24 | input[1] << 16 | input[2] << 8 | input[3];
             if (bufsiz + 4 > input.Length || bufsiz < 0)

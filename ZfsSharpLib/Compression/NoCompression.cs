@@ -4,7 +4,7 @@ namespace ZfsSharpLib
 {
     class NoCompression : ICompression
     {
-        public void Decompress(Span<byte> input, Span<byte> output)
+        public void Decompress(ReadOnlySpan<byte> input, Span<byte> output)
         {
             input.CopyTo(output);
         }

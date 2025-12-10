@@ -335,6 +335,7 @@ namespace ZfsSharpLib
         SHA512,
         SKEIN,
         EDONR,
+        BLAKE3,
         FUNCTIONS
     }
 
