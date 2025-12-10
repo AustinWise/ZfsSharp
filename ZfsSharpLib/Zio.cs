@@ -168,7 +168,7 @@ namespace ZfsSharpLib
         /// <param name="blkptr"></param>
         /// <param name="dva"></param>
         /// <returns>A buffer allocated from <see cref="Program.RentBytes"/>.</returns>
-        private ArraySegment<byte> ReadPhyical(blkptr_t blkptr, dva_t dva)
+        private ArraySegment<byte> ReadPhysical(blkptr_t blkptr, dva_t dva)
         {
             Vdev dev = mVdevs[dva.VDev];
             int hddReadSize = dva.IsGang ? zio_gbh_phys_t.SPA_GANGBLOCKSIZE : blkptr.PhysicalSizeBytes;
@@ -191,18 +191,18 @@ namespace ZfsSharpLib
             if (!isChecksumValid)
                 throw new Exception("Could not find a correct copy of the requested data.");
 
-            int realPhsyicalSize =
+            int realPhysicalSize =
                 gangHeader.zg_blkptr1.LogicalSizeBytes +
                 gangHeader.zg_blkptr2.LogicalSizeBytes +
                 gangHeader.zg_blkptr3.LogicalSizeBytes;
-            Debug.Assert(realPhsyicalSize == blkptr.PhysicalSizeBytes);
-            var physicalBytes = Program.RentBytes(realPhsyicalSize);
+            Debug.Assert(realPhysicalSize == blkptr.PhysicalSizeBytes);
+            var physicalBytes = Program.RentBytes(realPhysicalSize);
 
             int offset = 0;
             ReadGangBlkPtr(gangHeader.zg_blkptr1, physicalBytes, ref offset);
             ReadGangBlkPtr(gangHeader.zg_blkptr2, physicalBytes, ref offset);
             ReadGangBlkPtr(gangHeader.zg_blkptr3, physicalBytes, ref offset);
-            Debug.Assert(offset == realPhsyicalSize, "Did not read enough gang data!");
+            Debug.Assert(offset == realPhysicalSize, "Did not read enough gang data!");
 
             return physicalBytes;
         }
@@ -214,7 +214,7 @@ namespace ZfsSharpLib
                 throw new Exception("A compressed gang block? It seems redundent to decompress twice.");
             }
 
-            var physicalBytes = ReadPhyical(blkptr, dva);
+            var physicalBytes = ReadPhysical(blkptr, dva);
             try
             {
                 var chk = mChecksums[blkptr.Checksum].Calculate(physicalBytes);
