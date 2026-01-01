@@ -1,9 +1,27 @@
 ﻿What is this?
 =============
 
-This is a C# program that reads ZFS file systems.  Writing is explicitly a non-goal.
-Several types of disk images are supported: raw, VHD, VHDX, and VDI.
-RAIDZ, mirror, and stripe vdevs are supported.
+This is a C# program that reads OpenZFS file systems.  Writing is explicitly a non-goal.
+
+Several types of disk images are supported:
+
+* raw
+* VHD
+* VHDX
+* VDI
+
+Several types of VDevs are supported:
+
+* RAIDZ
+* mirror
+* stripe
+
+A few widely used OpenZFS features are implemented:
+
+* LZ4 compression
+* ZSTD compression
+* Embedded data in block pointers
+* Large blocks
 
 Code Layout
 -----------
@@ -18,10 +36,10 @@ Code Layout
 Future plans
 ------------
 
-* Improve Windows Project Filesystem support. Currently it works mostly ok, but for some reason
-  directory entries are duplicated.
+* Some sort of GUI for interactively exploring the on-disk structures of ZFS. Though ideally such a
+  GUI would be written on top of `libzpool` for better maintainability and fidelity.
 * Add support for FUSE.
-* Add `async` support to parrelleize checksumming and decompression.
+* Add `async` support to parallelize checksumming and decompression.
 
 What I'm learning
 -----------------
@@ -39,10 +57,11 @@ of ZFS.  Everything else in ZFS is just reading out of those.
 I found it interesting that ZFS incorporates three different ways of storing key-value pairs: ZAP, XDR, and SA.
 Each system is designed for different performance profiles:
 
-* SA: compactly storing small amounts of data, where many objects use the same key
+* SA: compactly storing small amounts of data, where many objects use the same set of keys
 * ZAP: fast lookup by key to handle large directories
-* XDR: Config data that is rarely read or written. Probably used because it was lying around in
-  Solaris for NFS, so why create something new.
+* XDR (aka NVList): A flexible data format that can support arbitrarily nested data structures (like JSON).
+  Its used for rarely changing configs. It was probably used because it was lying around in in the Solaris kernel.
+  Perhaps if ZFS was written today, JSON would be used instead.
 
 When I implemented the third system I started to get a feeling of Déjà vu.
 
