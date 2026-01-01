@@ -9,13 +9,14 @@ namespace ZfsSharpLib
 {
     public class Zpl
     {
-        private Zio mZio;
-        private dsl_dataset_phys_t mDataset;
-        private ObjectSet mZfsObjset;
-        private Dictionary<string, long> mZfsObjDir;
+        private readonly Zio mZio;
+        private readonly dsl_dataset_phys_t mDataset;
+        private readonly ObjectSet mZfsObjset;
+        private readonly Dictionary<string, long> mZfsObjDir;
 
-        private Dictionary<zpl_attr_t, int> mAttrSize = new Dictionary<zpl_attr_t, int>();
-        private Dictionary<int, SaLayout> mAttrLayouts = new Dictionary<int, SaLayout>();
+        private readonly Dictionary<zpl_attr_t, int> mAttrSize = new();
+        private readonly Dictionary<int, SaLayout> mAttrLayouts = new();
+        private readonly Dictionary<string, object> mDataSetExtensions = new();
 
         static readonly int SaHdrLengthOffset = Marshal.OffsetOf(typeof(sa_hdr_phys_t), "sa_lengths").ToInt32();
 
@@ -30,7 +31,7 @@ namespace ZfsSharpLib
 
             if (rootDataSetObj.Type.Byteswap == dmu_object_byteswap.ZAP)
             {
-                var dataSetExtensions = Zap.Parse(rootDataSetObj);
+                mDataSetExtensions = Zap.Parse(rootDataSetObj);
             }
 
             if (mDataset.prev_snap_obj != 0)
@@ -85,6 +86,8 @@ namespace ZfsSharpLib
                 }
             }
         }
+
+        public Dictionary<string, object> DataSetExtensions => mDataSetExtensions;
 
         public byte[] GetFileContents(string path)
         {

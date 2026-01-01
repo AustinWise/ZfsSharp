@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
@@ -15,7 +16,7 @@ namespace ZfsSharpLib
         const string DDT_STATISTICS = "DDT-statistics";
         const ulong SUPPORTED_VERSION = 5000;
 
-        readonly static ReadOnlyCollection<string> sSupportReadFeatures = new ReadOnlyCollection<string>(new string[]{
+        readonly static FrozenSet<string> sSupportReadFeatures = FrozenSet.Create([
             "com.delphix:hole_birth", //as far as I can tell this just means that hole block pointers will have their birth fields filled in
             "com.delphix:extensible_dataset", //this means a DSL_DATASET DN contains ZAP entries
             "org.illumos:lz4_compress",
@@ -23,7 +24,8 @@ namespace ZfsSharpLib
             "com.delphix:embedded_data",
             "com.klarasystems:vdev_zaps_v2", // An extra ZAP for storing properties on the root VDev.
             "com.delphix:head_errlog", // We don't read the error log, so we ignore this.
-        });
+            "org.open-zfs:large_blocks", // Support for blocks larger than 128KB
+        ]);
 
         List<LeafVdevInfo> mHdds;
         Zio mZio;

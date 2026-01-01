@@ -32,15 +32,20 @@ namespace ZfsSharp
                         continue;
 
                     var zpl = ds.GetHeadZfs();
+                    foreach (var kvp in zpl.DataSetExtensions)
+                    {
+                        Console.WriteLine("\tDataset extension: " + kvp.Key + " = " + kvp.Value);
+                    }
                     printContent(ds.Name, zpl.Root);
-
-                    if (ds.Name == "zones/var")
-                        Console.WriteLine(Encoding.ASCII.GetString(zpl.GetFileContents(@"/svc/log/svc.startd.log")));
 
                     foreach (var snap in ds.GetZfsSnapShots())
                     {
                         var snapName = ds.Name + "@" + snap.Key;
                         Console.WriteLine(snapName);
+                        foreach (var kvp in snap.Value.DataSetExtensions)
+                        {
+                            Console.WriteLine("\tDataset extension: " + kvp.Key + " = " + kvp.Value);
+                        }
                         printContent(snapName, snap.Value.Root);
                     }
                 }
