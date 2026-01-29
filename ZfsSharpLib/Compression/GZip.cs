@@ -1,4 +1,6 @@
 ﻿using System;
+using System.IO;
+using System.IO.Compression;
 
 namespace ZfsSharpLib
 {
@@ -6,9 +8,22 @@ namespace ZfsSharpLib
     {
         public void Decompress(ReadOnlySpan<byte> input, Span<byte> output)
         {
-            //GZip is not very common,
-            //so I'm dropping support for it as part of the Span<> upgrade.
-            throw new NotImplementedException();
+            using var inputStream = new MemoryStream(input.ToArray());
+            using var zlibStream = new ZLibStream(inputStream, CompressionMode.Decompress);
+            int totalRead = 0;
+            while (totalRead < output.Length)
+            {
+                int bytesRead = zlibStream.Read(output.Slice(totalRead));
+                if (bytesRead == 0)
+                {
+                    break; // End of stream
+                }
+                totalRead += bytesRead;
+            }
+            if (totalRead != output.Length)
+            {
+                throw new Exception("Decompressed data length does not match expected length.");
+            }
         }
     }
 }

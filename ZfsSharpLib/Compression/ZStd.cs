@@ -1,10 +1,9 @@
 
 using System;
 using System.Buffers.Binary;
-using System.IO;
 using System.Runtime.InteropServices;
-using ZstdSharp.Unsafe;
 using ZstdSharp;
+using ZstdSharp.Unsafe;
 
 namespace ZfsSharpLib;
 
@@ -27,7 +26,7 @@ class ZStd : ICompression
         if (BitConverter.IsLittleEndian)
             compressedLength = BinaryPrimitives.ReverseEndianness(compressedLength);
         input = input.Slice(sizeof(zfs_zstd_header), checked((int)compressedLength));
-        using var decompresser = new ZstdSharp.Decompressor();
+        using var decompresser = new Decompressor();
         decompresser.SetParameter(ZSTD_d_format, ZSTD_f_zstd1_magicless);
         if (!decompresser.TryUnwrap(input, output, out int written))
         {
