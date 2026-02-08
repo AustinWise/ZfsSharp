@@ -77,6 +77,9 @@ namespace ZfsSharpLib
             {
                 maxBonusSize -= sizeof(blkptr_t);
             }
+
+            Debug.Assert(bonusOffset >= 0);
+            Debug.Assert(maxBonusSize > 0);
         }
 
         unsafe public T GetBonus<T>() where T : struct
@@ -94,7 +97,7 @@ namespace ZfsSharpLib
 
             fixed (byte* pBonus = mPhys.Bonus)
             {
-                return Program.ToStruct<T>(pBonus, bonusOffset, maxBonusSize);
+                return Program.ToStruct<T>(pBonus + bonusOffset, 0, maxBonusSize);
             }
         }
 
