@@ -35,12 +35,12 @@ namespace ZfsSharpLib
 
         static unsafe void assertStructSize<T>(int size) where T : unmanaged
         {
-            int messuredSize = sizeof(T);
-            System.Diagnostics.Debug.Assert(messuredSize == size, $"Expected struct {typeof(T).Name} to be {size} bytes, but it is {messuredSize} bytes.");
+            int measuredSize = sizeof(T);
+            System.Diagnostics.Debug.Assert(measuredSize == size, $"Expected struct {typeof(T).Name} to be {size} bytes, but it is {measuredSize} bytes.");
         }
 
         /// <summary></summary>
-        /// <param name="directoryOrFile">Either the path to a virutal hard disk image file or a directory containing multiple images.</param>
+        /// <param name="directoryOrFile">Either the path to a virtual hard disk image file or a directory containing multiple images.</param>
         public Zfs(string directoryOrFile)
         {
             //make sure we correctly set the size of structs

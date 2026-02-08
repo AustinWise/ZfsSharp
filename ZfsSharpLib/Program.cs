@@ -166,12 +166,12 @@ namespace ZfsSharpLib
         /// <param name="startNdx">The offset within the block to start reading from.</param>
         public delegate void BlockReader<T>(Span<byte> dest, T blockKey, int startNdx);
 
-        static long roundup(long x, long y)
+        static long roundUp(long x, long y)
         {
             return ((x + (y - 1)) / y) * y;
         }
 
-        static long rounddown(long x, long y)
+        static long roundDown(long x, long y)
         {
             return (x / y) * y;
         }
@@ -193,21 +193,21 @@ namespace ZfsSharpLib
                 throw new ArgumentOutOfRangeException("blockSize");
 
             long firstBlock = offset / blockSize;
-            int numBlocks = (int)((roundup(offset + dest.Length, blockSize) - rounddown(offset, blockSize)) / blockSize);
+            int numBlocks = (int)((roundUp(offset + dest.Length, blockSize) - roundDown(offset, blockSize)) / blockSize);
 
-            int remaingBytes = dest.Length;
+            int remainingBytes = dest.Length;
             int destOffset = 0;
             for (int i = 0; i < numBlocks; i++)
             {
                 int blockOffset = (int)(offset % blockSize);
-                int size = Math.Min(remaingBytes, blockSize - blockOffset);
+                int size = Math.Min(remainingBytes, blockSize - blockOffset);
 
                 var key = GetBlockKey(firstBlock + i);
                 ReadBlock(dest.Slice(destOffset, size), key, blockOffset);
 
                 destOffset += size;
                 offset += size;
-                remaingBytes -= size;
+                remainingBytes -= size;
             }
         }
 

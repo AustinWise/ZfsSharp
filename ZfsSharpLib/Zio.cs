@@ -113,15 +113,15 @@ namespace ZfsSharpLib
             fixed (byte* pStartPtr = physicalBytes.Array)
             {
                 var pBytes = pStartPtr + physicalBytes.Offset;
-                int remaingBytes = physicalSize;
+                int remainingBytes = physicalSize;
 
-                for (int i = 0; remaingBytes > 0 && i < NUMBER_OF_EMBEDDED_CHUNKS; i++)
+                for (int i = 0; remainingBytes > 0 && i < NUMBER_OF_EMBEDDED_CHUNKS; i++)
                 {
-                    int size = Math.Min(remaingBytes, blkptr_t.EmbeddedSizes[i]);
+                    int size = Math.Min(remainingBytes, blkptr_t.EmbeddedSizes[i]);
                     Debug.Assert(size > 0);
                     Unsafe.CopyBlock(pBytes, embeddedDataPoints[i], (uint)size);
                     pBytes += size;
-                    remaingBytes -= size;
+                    remainingBytes -= size;
                 }
             }
 

@@ -22,7 +22,7 @@ namespace ZfsSharpLib.HardDisks
         static readonly Guid METADATA_VIRTUAL_DISK_SIZE = Guid.Parse("2FA54224-CD1B-4876-B211-5DBED83BF4B8");
         static readonly Guid METADATA_PAGE_83_DATA = Guid.Parse("BECA12AB-B2E6-4523-93EF-C309E000C746");
         static readonly Guid METADATA_LOGICAL_SECTOR_SIZE = Guid.Parse("8141BF1D-A96F-4709-BA47-F233A8FAAB5F");
-        static readonly Guid METADATA_PHSYICAL_SECTOR_SIZE = Guid.Parse("CDA348C7-445D-4471-9CC9-E9885251C556");
+        static readonly Guid METADATA_PHYSICAL_SECTOR_SIZE = Guid.Parse("CDA348C7-445D-4471-9CC9-E9885251C556");
         static readonly Guid METADATA_PARENT_LOCATOR = Guid.Parse("A8D35F2D-B30B-454D-ABF7-D3D84834AB0C");
         static readonly HashSet<Guid> sKnownMetadataItems = new HashSet<Guid>(new Guid[]
         {
@@ -30,7 +30,7 @@ namespace ZfsSharpLib.HardDisks
             METADATA_VIRTUAL_DISK_SIZE,
             METADATA_PAGE_83_DATA,
             METADATA_LOGICAL_SECTOR_SIZE,
-            METADATA_PHSYICAL_SECTOR_SIZE,
+            METADATA_PHYSICAL_SECTOR_SIZE,
             METADATA_PARENT_LOCATOR,
         });
 
@@ -227,8 +227,7 @@ namespace ZfsSharpLib.HardDisks
                 else if (entry.IsRequired && !sKnownMetadataItems.Contains(entry.ItemId))
                     throw new Exception($"Unknown required metadata item: {entry.ItemId}");
 
-                //the ArraySegment overload of ToStruct will make sure the entry size matches the data item
-                var entryBytes = new ArraySegment<byte>(metadataBytes, checked((int)entry.Offset), checked((int)entry.Length));
+                ReadOnlySpan<byte> entryBytes = new ReadOnlySpan<byte>(metadataBytes, checked((int)entry.Offset), checked((int)entry.Length));
                 if (entry.ItemId == METADATA_FILE_PARAMS)
                 {
                     fileParams = Program.ToStruct<VHDX_FILE_PARAMETERS>(entryBytes);

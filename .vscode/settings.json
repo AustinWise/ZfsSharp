@@ -1,0 +1,29 @@
+{
+    "cSpell.words": [
+        "ASIZE",
+        "blkptr",
+        "cksum",
+        "delphix",
+        "errlog",
+        "Flecter",
+        "GANGBLOCKSIZE",
+        "Hdds",
+        "illumos",
+        "klarasystems",
+        "LZJB",
+        "MAXBLOCKSHIFT",
+        "MAXBLOCKSIZE",
+        "MINBLOCKSHIFT",
+        "MINBLOCKSIZE",
+        "NVLIST",
+        "objset",
+        "PSIZE",
+        "rootbp",
+        "spacemap",
+        "Uberblock",
+        "Uberblocks",
+        "Vdev",
+        "vdevs",
+        "VHDX"
+    ]
+}
