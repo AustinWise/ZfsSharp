@@ -68,7 +68,7 @@ namespace ZfsSharpLib
             return ToStruct<T>(bytes.Array, bytes.Offset);
         }
 
-        public static T ToStruct<T>(Span<byte> bytes) where T : struct
+        public static T ToStruct<T>(ReadOnlySpan<byte> bytes) where T : struct
         {
             if (Unsafe.SizeOf<T>() != bytes.Length)
                 throw new ArgumentOutOfRangeException();

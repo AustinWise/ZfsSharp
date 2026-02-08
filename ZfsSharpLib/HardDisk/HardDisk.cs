@@ -26,7 +26,7 @@ namespace ZfsSharpLib
         /// <param name="offset"></param>
         /// <param name="count"></param>
         /// <returns>true if the checksum is valid, false otherwise</returns>
-        public bool ReadLabelBytes(ArraySegment<byte> dest, long offset)
+        public bool ReadLabelBytes(Span<byte> dest, long offset)
         {
             ReadBytes(dest, offset);
             var verifier = new zio_cksum_t()

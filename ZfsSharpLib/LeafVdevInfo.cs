@@ -26,7 +26,7 @@ namespace ZfsSharpLib
             // TODO: try reading all labels and use the one with the highest txg.
             var rentedBytes = Program.RentBytes(VDEV_PHYS_SIZE);
             if (!hdd.ReadLabelBytes(rentedBytes, VDEV_SKIP_SIZE))
-                throw new Exception("Invalid checksum on lable config data!");
+                throw new Exception("Invalid checksum on label config data!");
             Config = new NvList(rentedBytes);
             Program.ReturnBytes(rentedBytes);
             rentedBytes = default;

@@ -5,6 +5,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using ZfsSharpLib.VirtualDevices;
 
 namespace ZfsSharpLib
@@ -13,23 +14,26 @@ namespace ZfsSharpLib
     {
         static readonly Sha256 sEmbeddedChecksum = new Sha256();
 
-        public unsafe static bool IsEmbeddedChecksumValid(ArraySegment<byte> bytes, zio_cksum_t verifier)
+        public unsafe static bool IsEmbeddedChecksumValid(ReadOnlySpan<byte> bytesToVerify, zio_cksum_t verifier)
         {
-            int embeddedChecksumSize = sizeof(zio_eck_t);
-            if (bytes.Count <= embeddedChecksumSize)
-                throw new ArgumentOutOfRangeException(nameof(bytes), "Not enough space for an embedded checksum.");
+            int embeddedChecksumContainerSize = sizeof(zio_eck_t);
+            if (bytesToVerify.Length <= embeddedChecksumContainerSize)
+                throw new ArgumentOutOfRangeException(nameof(bytesToVerify), "Not enough space for an embedded checksum.");
 
-            fixed (byte* bytePtr = bytes.Array)
-            {
-                zio_eck_t* pzec = (zio_eck_t*)(bytePtr + bytes.Offset + bytes.Count - embeddedChecksumSize);
-                if (!pzec->IsMagicValid)
-                    return false;
-                var expectedChecksum = pzec->zec_cksum;
-                pzec->zec_cksum = verifier;
-                var actualChecksum = sEmbeddedChecksum.Calculate(bytes);
-                pzec->zec_cksum = expectedChecksum;
-                return actualChecksum.Equals(expectedChecksum);
-            }
+            zio_eck_t embeddedChecksumContainer = Program.ToStruct<zio_eck_t>(bytesToVerify.Slice(bytesToVerify.Length - embeddedChecksumContainerSize));
+
+            if (!embeddedChecksumContainer.IsMagicValid)
+                return false;
+
+            var expectedChecksum = embeddedChecksumContainer.zec_cksum;
+            int checksumSize = sizeof(zio_cksum_t);
+            // TODO: do this without copying all of the bytes somehow.
+            byte[] copy = new byte[bytesToVerify.Length];
+            bytesToVerify.Slice(0, bytesToVerify.Length - checksumSize).CopyTo(copy);
+            MemoryMarshal.AsBytes(new ReadOnlySpan<zio_cksum_t>(ref verifier)).CopyTo(copy.AsSpan(copy.Length - checksumSize));
+
+            var actualChecksum = sEmbeddedChecksum.Calculate(copy);
+            return actualChecksum.Equals(expectedChecksum);
         }
 
         const int SPA_MINBLOCKSHIFT = 9;
@@ -130,11 +134,6 @@ namespace ZfsSharpLib
             Program.ReturnBytes(physicalBytes);
         }
 
-        public void Read(blkptr_t blkptr, ArraySegment<byte> dest)
-        {
-            Read(blkptr, (Span<byte>)dest);
-        }
-
         public void Read(blkptr_t blkptr, Span<byte> dest)
         {
             if (blkptr.birth == 0)
@@ -176,10 +175,10 @@ namespace ZfsSharpLib
             return ret;
         }
 
-        private void ReadGangBlkPtr(blkptr_t blkptr, ArraySegment<byte> dest, ref int offset)
+        private void ReadGangBlkPtr(blkptr_t blkptr, Span<byte> dest, ref int offset)
         {
             int size = blkptr.LogicalSizeBytes;
-            Read(blkptr, dest.SubSegment(offset, size));
+            Read(blkptr, dest.Slice(offset, size));
             offset += size;
         }
 
