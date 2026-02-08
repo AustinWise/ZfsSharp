@@ -77,10 +77,12 @@ namespace ZfsSharpLib
 
         public unsafe static T ToStruct<T>(byte* ptr, long offset, long ptrLength) where T : struct
         {
-            if (offset < 0 || ptrLength <= 0)
-                throw new ArgumentOutOfRangeException();
+            if (offset < 0)
+                throw new ArgumentOutOfRangeException("offset", "offset must be non-negative.");
+            if (ptrLength <= 0)
+                throw new ArgumentOutOfRangeException("ptrLength", "ptrLength must be positive.");
             if (offset + Unsafe.SizeOf<T>() > ptrLength)
-                throw new ArgumentOutOfRangeException();
+                throw new ArgumentOutOfRangeException("offset", "The struct extends beyond the end of the byte array.");
             return Unsafe.Read<T>(ptr + offset);
         }
 

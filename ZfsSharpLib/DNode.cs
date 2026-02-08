@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace ZfsSharpLib
@@ -29,6 +30,11 @@ namespace ZfsSharpLib
         public dmu_object_type_t BonusType
         {
             get { return mPhys.BonusType; }
+        }
+
+        public short BonusLen
+        {
+            get { return mPhys.BonusLen; }
         }
 
         public int BlockSizeInBytes

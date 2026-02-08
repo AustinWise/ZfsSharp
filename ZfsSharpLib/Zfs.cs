@@ -36,7 +36,7 @@ namespace ZfsSharpLib
         static unsafe void assertStructSize<T>(int size) where T : unmanaged
         {
             int messuredSize = sizeof(T);
-            System.Diagnostics.Debug.Assert(messuredSize == size);
+            System.Diagnostics.Debug.Assert(messuredSize == size, $"Expected struct {typeof(T).Name} to be {size} bytes, but it is {messuredSize} bytes.");
         }
 
         /// <summary></summary>
@@ -45,6 +45,7 @@ namespace ZfsSharpLib
         {
             //make sure we correctly set the size of structs
             assertStructSize<zio_gbh_phys_t>(zio_gbh_phys_t.SPA_GANGBLOCKSIZE);
+            assertStructSize<dnode_phys_t>(dnode_phys_t.DNODE_SIZE);
             assertStructSize<objset_phys_t>(objset_phys_t.OBJSET_PHYS_SIZE_V3);
 
             mHdds = LeafVdevInfo.GetLeafVdevs(directoryOrFile);
@@ -71,6 +72,8 @@ namespace ZfsSharpLib
             //make sure we support enough features to read the MOS
             foreach (var hdd in mHdds)
             {
+                if (hdd.Uberblock.Version != SUPPORTED_VERSION)
+                    throw new Exception("Unsupported version.");
                 CheckVersion(hdd.Config);
             }
 
@@ -79,8 +82,10 @@ namespace ZfsSharpLib
             if (poolGuid.Length != 1)
                 throw new Exception("Hard drives are part of different pools: " + string.Join(", ", poolGuid.Select(p => p.ToString())));
 
-            //ensure all HDDs agree on the transaction group id
-            var txg = mHdds.Select(hdd => hdd.Uberblock.Txg).Distinct().ToArray();
+            // Ensure all HDDs agree on the transaction group id.
+            // This seems to be true of exported pools, but it looks like spa_sync_rewrite_vdev_config
+            // will write labels to only 3 vdevs at a time when there are no configuration changes.
+            var txg = mHdds.Select(hdd => hdd.Txg).Distinct().ToArray();
             if (txg.Length != 1)
                 throw new Exception("Uberblocks do not all have the same transaction group id: " + string.Join(", ", txg.Select(p => p.ToString())));
 
@@ -112,7 +117,12 @@ namespace ZfsSharpLib
 
             {
                 var configDn = mMos.ReadEntry(mObjDir[CONFIG]);
-                var configBytes = Program.RentBytes(checked((int)configDn.AvailableDataSize));
+                if (configDn.Type.LegacyType != dmu_object_type_t.PACKED_NVLIST)
+                    throw new Exception("Config DN was not a packed nvlist!");
+                if (configDn.BonusType != dmu_object_type_t.PACKED_NVLIST_SIZE || configDn.BonusLen != 8)
+                    throw new Exception("Config DN did not have the correct bonus type!");
+                int bonusLength = checked((int)configDn.GetBonus<ulong>());
+                var configBytes = Program.RentBytes(bonusLength);
                 configDn.Read(configBytes, 0);
                 mConfig = new NvList(configBytes);
                 Program.ReturnBytes(configBytes);

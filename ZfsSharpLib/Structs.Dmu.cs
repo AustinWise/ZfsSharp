@@ -163,7 +163,7 @@ namespace ZfsSharpLib
         /*
          * Derived constants.
          */
-        const int DNODE_SIZE = (1 << DNODE_SHIFT);
+        public const int DNODE_SIZE = (1 << DNODE_SHIFT);
         const int DN_MAX_NBLKPTR = ((DNODE_SIZE - DNODE_CORE_SIZE) >> blkptr_t.SPA_BLKPTRSHIFT);
         public const int DN_MAX_BONUSLEN = (DNODE_SIZE - DNODE_CORE_SIZE - (1 << blkptr_t.SPA_BLKPTRSHIFT));
         const long DN_MAX_OBJECT = (1L << DN_MAX_OBJECT_SHIFT);

@@ -23,19 +23,15 @@ namespace ZfsSharpLib
         {
             this.HDD = hdd;
 
+            // TODO: try reading all labels and use the one with the highest txg.
             var rentedBytes = Program.RentBytes(VDEV_PHYS_SIZE);
+            if (!hdd.ReadLabelBytes(rentedBytes, VDEV_SKIP_SIZE))
+                throw new Exception("Invalid checksum on lable config data!");
+            Config = new NvList(rentedBytes);
+            Program.ReturnBytes(rentedBytes);
+            rentedBytes = default;
 
-            try
-            {
-                if (!hdd.ReadLabelBytes(rentedBytes, VDEV_SKIP_SIZE))
-                    throw new Exception("Invalid checksum on lable config data!");
-                Config = new NvList(rentedBytes);
-            }
-            finally
-            {
-                Program.ReturnBytes(rentedBytes);
-                rentedBytes = default(ArraySegment<byte>);
-            }
+            Txg = Config.Get<ulong>("txg");
 
             //figure out how big the uber blocks are
             var vdevTree = Config.Get<NvList>("vdev_tree");
@@ -47,26 +43,37 @@ namespace ZfsSharpLib
 
             List<uberblock_t> blocks = new List<uberblock_t>();
             var ubBytes = Program.RentBytes(ubSize);
-            try
+            for (long i = 0; i < ubCount; i++)
             {
-                for (long i = 0; i < ubCount; i++)
+                var offset = VDEV_SKIP_SIZE + VDEV_PHYS_SIZE + ubSize * i;
+                if (!hdd.ReadLabelBytes(ubBytes, offset))
+                    continue;
+                uberblock_t b = Program.ToStruct<uberblock_t>(ubBytes.Array, ubBytes.Offset);
+                if (b.Magic == uberblock_t.UbMagic)
                 {
-                    var offset = VDEV_SKIP_SIZE + VDEV_PHYS_SIZE + ubSize * i;
-                    if (!hdd.ReadLabelBytes(ubBytes, offset))
-                        continue;
-                    uberblock_t b = Program.ToStruct<uberblock_t>(ubBytes.Array, ubBytes.Offset);
-                    if (b.Magic == uberblock_t.UbMagic)
-                    {
-                        blocks.Add(b);
-                    }
+                    blocks.Add(b);
                 }
             }
-            finally
+            Program.ReturnBytes(ubBytes);
+            ubBytes = default;
+
+
+            bool foundUberblock = false;
+            foreach (var b in blocks)
             {
-                Program.ReturnBytes(ubBytes);
-                ubBytes = default(ArraySegment<byte>);
+                if (b.Txg == Txg)
+                {
+                    this.Uberblock = b;
+                    foundUberblock = true;
+                    break;
+                }
             }
-            this.Uberblock = blocks.OrderByDescending(u => u.Txg).ThenByDescending(u => u.TimeStamp).First();
+            if (!foundUberblock)
+            {
+                // TODO: recover from the case where the label config was written but the uberblock
+                // was not yet written to the label.
+                throw new Exception($"Config has txg {Txg}, but there was no matching uberblock.");
+            }
 
             const int VDevLableSizeStart = 4 << 20;
             const int VDevLableSizeEnd = 512 << 10;
@@ -75,6 +82,7 @@ namespace ZfsSharpLib
         }
 
         public ulong Guid { get; private set; }
+        public ulong Txg { get; private set; }
         public uberblock_t Uberblock { get; private set; }
         public HardDisk HDD { get; private set; }
         public NvList Config { get; private set; }
