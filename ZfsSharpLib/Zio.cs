@@ -2,7 +2,6 @@
 
 using System;
 using System.Buffers;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -28,11 +27,13 @@ namespace ZfsSharpLib
             var expectedChecksum = embeddedChecksumContainer.zec_cksum;
             int checksumSize = sizeof(zio_cksum_t);
             // TODO: do this without copying all of the bytes somehow.
-            byte[] copy = new byte[bytesToVerify.Length];
+            byte[] rentedCopy = ArrayPool<byte>.Shared.Rent(bytesToVerify.Length);
+            Span<byte> copy = new Span<byte>(rentedCopy, 0, bytesToVerify.Length);
             bytesToVerify.Slice(0, bytesToVerify.Length - checksumSize).CopyTo(copy);
-            MemoryMarshal.AsBytes(new ReadOnlySpan<zio_cksum_t>(ref verifier)).CopyTo(copy.AsSpan(copy.Length - checksumSize));
+            MemoryMarshal.AsBytes(new ReadOnlySpan<zio_cksum_t>(ref verifier)).CopyTo(copy.Slice(copy.Length - checksumSize));
 
             var actualChecksum = sEmbeddedChecksum.Calculate(copy);
+            ArrayPool<byte>.Shared.Return(rentedCopy);
             return actualChecksum.Equals(expectedChecksum);
         }
 
