@@ -7,7 +7,7 @@ using ZfsSharpLib.HardDisks;
 
 namespace ZfsSharpLib
 {
-    class LeafVdevInfo : IDisposable
+    public class LeafVdevInfo : IDisposable
     {
         const int VDEV_PAD_SIZE = (8 << 10);
         /* 2 padding areas (vl_pad1 and vl_pad2) to skip */
@@ -19,7 +19,7 @@ namespace ZfsSharpLib
         const int MAX_UBERBLOCK_SHIFT = 13;
         const int VDEV_UBERBLOCK_RING = (128 << 10);
 
-        public LeafVdevInfo(HardDisk hdd)
+        private LeafVdevInfo(HardDisk hdd)
         {
             this.HDD = hdd;
 
@@ -81,63 +81,40 @@ namespace ZfsSharpLib
             this.HDD = hdd;
         }
 
-        public ulong Guid { get; private set; }
-        public ulong Txg { get; private set; }
-        public uberblock_t Uberblock { get; private set; }
-        public HardDisk HDD { get; private set; }
-        public NvList Config { get; private set; }
+        internal ulong Guid { get; private set; }
+        internal ulong Txg { get; private set; }
+        internal uberblock_t Uberblock { get; private set; }
+        internal HardDisk HDD { get; private set; }
+        internal NvList Config { get; private set; }
 
         public void Dispose()
         {
             HDD.Dispose();
         }
 
-        static readonly Dictionary<string, Func<FileHardDisk, HardDisk>> sFileFormats = new Dictionary<string, Func<FileHardDisk, HardDisk>>(StringComparer.OrdinalIgnoreCase)
+        static readonly Dictionary<string, Func<HardDisk, HardDisk>> sFileFormats = new Dictionary<string, Func<HardDisk, HardDisk>>(StringComparer.OrdinalIgnoreCase)
         {
             { ".vhd",  fileHdd => new GptHardDrive(VhdHardDisk.Create(fileHdd)) },
             { ".vhdx", fileHdd => new GptHardDrive(new VhdxHardDisk(fileHdd)) },
             { ".vdi",  fileHdd => new GptHardDrive(new VdiHardDisk(fileHdd)) },
-            { ".zfs",  fileHdd => fileHdd },
         };
 
-        public static List<LeafVdevInfo> GetLeafVdevs(string dirOrFile)
+        /// <summary>
+        /// Creates a LeafVdevInfo from a file. If the file has known disk image format, then we will
+        /// search for the GPT partition that contains a ZFS partition and open that. Otherwise, we
+        /// will treat it as a leaf ZFS vdev in a file or a block device.
+        /// </summary>
+        /// <param name="fi"></param>
+        /// <returns></returns>
+        public static LeafVdevInfo CreateFromFile(FileInfo fi)
         {
-            var ret = new List<LeafVdevInfo>();
-
-            try
+            HardDisk hdd = new FileHardDisk(fi.FullName);
+            Func<HardDisk, HardDisk> factory;
+            if (sFileFormats.TryGetValue(fi.Extension, out factory))
             {
-                FileInfo[] files;
-                if (File.Exists(dirOrFile))
-                {
-                    files = new FileInfo[] { new FileInfo(dirOrFile) };
-                }
-                else
-                {
-                    files = new DirectoryInfo(dirOrFile).GetFiles();
-                }
-
-                foreach (var fi in files)
-                {
-                    Func<FileHardDisk, HardDisk> factory;
-                    if (!sFileFormats.TryGetValue(fi.Extension, out factory))
-                        continue;
-
-                    var file = new FileHardDisk(fi.FullName);
-                    var partition = factory(file);
-                    var vdev = new LeafVdevInfo(partition);
-                    ret.Add(vdev);
-                }
+                hdd = factory(hdd);
             }
-            catch
-            {
-                foreach (var leaf in ret)
-                {
-                    leaf.Dispose();
-                }
-                throw;
-            }
-
-            return ret;
+            return new LeafVdevInfo(hdd);
         }
     }
 }

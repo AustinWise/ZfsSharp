@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Globalization;
+using System.Diagnostics;
 using System.Linq;
-using System.Text;
 using ZfsSharpLib.VirtualDevices;
 
 namespace ZfsSharpLib
@@ -33,22 +31,29 @@ namespace ZfsSharpLib
         NvList mConfig;
         ObjectSet mMos;
 
+        [Conditional("DEBUG")]
         static unsafe void assertStructSize<T>(int size) where T : unmanaged
         {
             int measuredSize = sizeof(T);
-            System.Diagnostics.Debug.Assert(measuredSize == size, $"Expected struct {typeof(T).Name} to be {size} bytes, but it is {measuredSize} bytes.");
+            Debug.Assert(measuredSize == size, $"Expected struct {typeof(T).Name} to be {size} bytes, but it is {measuredSize} bytes.");
         }
 
-        /// <summary></summary>
-        /// <param name="directoryOrFile">Either the path to a virtual hard disk image file or a directory containing multiple images.</param>
-        public Zfs(string directoryOrFile)
+        /// <summary>
+        /// Create a Zfs pool from a collection of leaf vdevs.
+        /// </summary>
+        /// <remarks>
+        /// This constructor takes ownership of the vdevs. They will be disposed either in the constructor
+        /// if it throws, or in the Dispose() method.
+        /// </remarks>
+        /// <param name="vdevs"></param>
+        public Zfs(IEnumerable<LeafVdevInfo> vdevs)
         {
             //make sure we correctly set the size of structs
             assertStructSize<zio_gbh_phys_t>(zio_gbh_phys_t.SPA_GANGBLOCKSIZE);
             assertStructSize<dnode_phys_t>(dnode_phys_t.DNODE_SIZE);
             assertStructSize<objset_phys_t>(objset_phys_t.OBJSET_PHYS_SIZE_V3);
 
-            mHdds = LeafVdevInfo.GetLeafVdevs(directoryOrFile);
+            mHdds = [.. vdevs];
 
             try
             {

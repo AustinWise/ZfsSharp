@@ -1,27 +1,51 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
 using ZfsSharpLib;
 
 namespace ZfsSharp
 {
     class Program
     {
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
             if (args.Length == 0)
             {
-                Console.WriteLine("Usage: ZfsSharp.exe <a directory containing VHD, VHDX, VDI, or ZFS files>");
-                return;
+                Console.WriteLine("Usage: ZfsSharp.exe <one or paths containing VHD, VHDX, VDI, or ZFS files>");
+                Console.WriteLine("\tPaths can be files or directories. If a directory is specified, we will search for supported files in that directory and subdirectories.");
+                Console.WriteLine("\tSupported disk image format: .vhd, .vhdx, .vdi");
+                Console.WriteLine("\tIf a file does not end in that extension, we will treat it as a raw ZFS vdev.");
+                return 1;
             }
 
             var sw = Stopwatch.StartNew();
             sw.Stop();
 
-            using (var zfs = new Zfs(args[0]))
+            var vdevs = new List<LeafVdevInfo>();
+            foreach (var path in args)
+            {
+                if (File.Exists(path))
+                {
+                    vdevs.Add(LeafVdevInfo.CreateFromFile(new FileInfo(path)));
+                }
+                else if (Directory.Exists(path))
+                {
+                    foreach (var file in Directory.GetFiles(path))
+                    {
+                        vdevs.Add(LeafVdevInfo.CreateFromFile(new FileInfo(file)));
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"Path {path} does not exist.");
+                    return 1;
+                }
+            }
+
+            using (var zfs = new Zfs(vdevs))
             {
                 sw = Stopwatch.StartNew();
                 foreach (var ds in zfs.GetAllDataSets())
@@ -54,6 +78,7 @@ namespace ZfsSharp
             }
 
             Console.WriteLine();
+            return 0;
         }
 
         private static void DumpContents(string outPath, Zpl.ZfsItem item)

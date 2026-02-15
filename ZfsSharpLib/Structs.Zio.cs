@@ -151,6 +151,17 @@ namespace ZfsSharpLib
         [FieldOffset(32)]
         public dva_t dva3;
 
+        public dva_t GetDva(int index)
+        {
+            switch (index)
+            {
+                case 0: return dva1;
+                case 1: return dva2;
+                case 2: return dva3;
+                default: throw new ArgumentOutOfRangeException(nameof(index));
+            }
+        }
+
         [FieldOffset(48)]
         long prop;
         [FieldOffset(48)]
