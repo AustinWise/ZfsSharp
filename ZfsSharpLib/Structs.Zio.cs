@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
 namespace ZfsSharpLib
@@ -28,7 +29,7 @@ namespace ZfsSharpLib
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    struct dva_t
+    struct dva_t : IEquatable<dva_t>
     {
         long word1;
         long word2;
@@ -62,6 +63,21 @@ namespace ZfsSharpLib
         public bool IsEmpty
         {
             get { return word1 == 0 && word2 == 0; }
+        }
+
+        public bool Equals(dva_t other)
+        {
+            return this.word1 == other.word1 && this.word2 == other.word2;
+        }
+
+        public override bool Equals([NotNullWhen(true)] object obj)
+        {
+            return obj is dva_t other && this.Equals(other);
+        }
+
+        override public int GetHashCode()
+        {
+            return HashCode.Combine(word1, word2);
         }
     }
 
@@ -209,6 +225,11 @@ namespace ZfsSharpLib
             }
         }
 
+        public long LogicalBirth
+        {
+            get { return birth; }
+        }
+
         public EmbeddedType EmbedType
         {
             get
@@ -282,21 +303,21 @@ namespace ZfsSharpLib
 
         public bool Equals(blkptr_t other)
         {
-            if (this.NormalProps.Checksum != zio_checksum.OFF)
-                return this.cksum.Equals(other.cksum);
-            return false; // don't worry about blocks without checksums for now
+            return this.dva1.Equals(other.dva1) &&
+                   this.dva2.Equals(other.dva2) &&
+                   this.dva3.Equals(other.dva3) &&
+                   this.phys_birth == other.phys_birth &&
+                   this.birth == other.birth;
         }
 
         public override bool Equals(object obj)
         {
-            if (obj == null || obj.GetType() != GetType())
-                return false;
-            return Equals((blkptr_t)obj);
+            return obj is blkptr_t other && this.Equals(other);
         }
 
         public override int GetHashCode()
         {
-            return this.cksum.GetHashCode();
+            return HashCode.Combine(dva1, dva2, dva3, phys_birth, birth);
         }
     }
 

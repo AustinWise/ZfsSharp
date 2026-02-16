@@ -82,29 +82,18 @@ namespace ZfsSharpLib
                 CheckVersion(hdd.Config);
             }
 
-            //ensure all HDDs are part of the same pool
-            var poolGuid = mHdds.Select(h => h.Config.Get<ulong>("pool_guid")).Distinct().ToArray();
-            if (poolGuid.Length != 1)
-                throw new Exception("Hard drives are part of different pools: " + string.Join(", ", poolGuid.Select(p => p.ToString())));
-
-            // Ensure all HDDs agree on the transaction group id.
-            // This seems to be true of exported pools, but it looks like spa_sync_rewrite_vdev_config
+            // While exported pools typically have the same txg on all disk labels, spa_sync_rewrite_vdev_config
             // will write labels to only 3 vdevs at a time when there are no configuration changes.
-            var txg = mHdds.Select(hdd => hdd.Txg).Distinct().ToArray();
-            if (txg.Length != 1)
-                throw new Exception("Uberblocks do not all have the same transaction group id: " + string.Join(", ", txg.Select(p => p.ToString())));
-
-            var ub = mHdds[0].Uberblock;
+            // So we need to find the highest txg to read pools that were not cleanly exported.
+            var ub = mHdds.OrderByDescending(hdd => hdd.Txg).First().Uberblock;
             if (ub.Txg == 0)
                 throw new Exception("Root block pointer's transaction group is zero!");
 
-            var vdevs = Vdev.CreateVdevTree(mHdds);
+            LoadMosAndConfig(Vdev.CreateTreeFromLabels(mHdds, ub), ub);
 
-            mZio = new Zio(vdevs);
-
-            mMos = new ObjectSet(mZio, ub.rootbp);
-            if (mMos.Type != dmu_objset_type_t.DMU_OST_META)
-                throw new Exception("Given block pointer did not point to the MOS.");
+            // Recreate the VDEV tree based on the config in the MOS, which has a complete picture of
+            // the VDEV tree.
+            LoadMosAndConfig(Vdev.CreateFromMosConfig(mHdds, ub, mConfig), ub);
 
             // Changes to how space maps work are treated as "features required to write" for the purposes of OpenZFS.
             // So we don't need to be able to read them to read data. But they act as as sanity check that we are reading
@@ -114,6 +103,18 @@ namespace ZfsSharpLib
             // mZio.InitMetaSlabs(mMos);
             //the second time we will make sure that space maps contain themselves
             // mZio.InitMetaSlabs(mMos);
+
+            CheckVersion(mConfig);
+            CheckFeatures();
+        }
+
+        private void LoadMosAndConfig(Vdev[] vdevs, uberblock_t ub)
+        {
+            mZio = new Zio(vdevs);
+
+            mMos = new ObjectSet(mZio, ub.rootbp);
+            if (mMos.Type != dmu_objset_type_t.DMU_OST_META)
+                throw new Exception("Given block pointer did not point to the MOS.");
 
             var objectDirectory = mMos.ReadEntry(1);
             //The MOS's directory sometimes has things that don't like like directory entries.
@@ -132,9 +133,6 @@ namespace ZfsSharpLib
                 mConfig = new NvList(configBytes);
                 Program.ReturnBytes(configBytes);
             }
-
-            CheckVersion(mConfig);
-            CheckFeatures();
         }
 
         private void CheckFeatures()

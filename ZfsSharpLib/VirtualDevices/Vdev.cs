@@ -44,7 +44,7 @@ namespace ZfsSharpLib.VirtualDevices
         }
         public ulong ID { get; private set; }
 
-        //These are optional, as children of raidz and mirror don't have them.
+        //These only populated on top-level vdevs.
         public ulong? MetaSlabArray { get; private set; }
         public ulong? MetaSlabShift { get; private set; }
         public ulong? AShift { get; private set; }
@@ -68,32 +68,42 @@ namespace ZfsSharpLib.VirtualDevices
             throw new NotImplementedException();
         }
 
-        public static Vdev[] CreateVdevTree(List<LeafVdevInfo> hdds)
+        public static Vdev[] CreateTreeFromLabels(List<LeafVdevInfo> hdds, uberblock_t uberblock)
         {
             if (hdds.Count == 0)
                 throw new ArgumentOutOfRangeException("No hard drives provided.");
 
+            //ensure all HDDs are part of the same pool
+            var poolGuid = hdds.Select(h => h.Config.Get<ulong>("pool_guid")).Distinct().ToArray();
+            if (poolGuid.Length != 1)
+                throw new Exception("Hard drives are part of different pools: " + string.Join(", ", poolGuid.Select(p => p.ToString())));
+
             var hddMap = new Dictionary<ulong, LeafVdevInfo>();
             var innerVdevConfigs = new Dictionary<ulong, NvList>();
-            ulong numberOfChildren = 0;
+            ulong numberOfChildren = hdds.OrderByDescending(l => l.ConfigTxg).First().Config.Get<ulong>("vdev_children");
+            if (numberOfChildren == 0)
+            {
+                throw new Exception("Top level config contains zero children?!");
+            }
+
+            ulong guidSum = poolGuid[0];
             foreach (var hdd in hdds)
             {
-                ulong hddNumberOfChildren = hdd.Config.Get<ulong>("vdev_children");
-                if (hddNumberOfChildren == 0)
-                {
-                    throw new Exception("Hard drive vdev has zero children?!");
-                }
-                else if (numberOfChildren == 0)
-                {
-                    numberOfChildren = hddNumberOfChildren;
-                }
-                else if (numberOfChildren != hddNumberOfChildren)
-                {
-                    throw new Exception("Hard drives do not agree on number of vdev children.");
-                }
-                hddMap.Add(hdd.Config.Get<ulong>("guid"), hdd);
+                ulong guid = hdd.Config.Get<ulong>("guid");
+                guidSum += guid;
+                hddMap.Add(guid, hdd);
                 var vdevTree = hdd.Config.Get<NvList>("vdev_tree");
+                // According to
+                // https://github.com/openzfs/zfs/blob/zfs-2.4.0/module/zfs/vdev_label.c#L93-L97
+                // not every config in the pool is updated when a adding devices.
+                // TODO: load the highest available config for each top level vdev.
                 innerVdevConfigs[vdevTree.Get<ulong>("guid")] = vdevTree;
+            }
+
+            // TODO: validate when there are multiple top level vdevs with multiple child vdevs.
+            if (guidSum != uberblock.GuidSum)
+            {
+                throw new Exception($"The sum of vdev guids {guidSum} does not match the guid sum in the uberblock {uberblock.GuidSum}.");
             }
 
             if (innerVdevConfigs.Count != (int)numberOfChildren)
@@ -107,18 +117,48 @@ namespace ZfsSharpLib.VirtualDevices
                 innerVdevs.Add(Vdev.Create(kvp.Value, hddMap));
             }
 
-            ulong calculatedTopGuid = 0;
-            for (int i = 0; i < innerVdevs.Count; i++)
-            {
-                calculatedTopGuid += innerVdevs[i].Guid;
-            }
-
             var ret = innerVdevs.OrderBy(v => v.ID).ToArray();
             for (uint i = 0; i < ret.Length; i++)
             {
                 if (ret[i].ID != i)
                     throw new Exception("Missing vdev.");
             }
+            return ret;
+        }
+
+        public static Vdev[] CreateFromMosConfig(List<LeafVdevInfo> hdds, uberblock_t ub, NvList config)
+        {
+            var hddMap = new Dictionary<ulong, LeafVdevInfo>();
+            foreach (var hdd in hdds)
+            {
+                ulong guid = hdd.Config.Get<ulong>("guid");
+                hddMap.Add(guid, hdd);
+            }
+
+            var numberOfChildren = config.Get<ulong>("vdev_children");
+            ulong poolGuid = config.Get<ulong>("pool_guid");
+
+            NvList rootVdev = config.Get<NvList>("vdev_tree");
+            NvList[] topLevelVdevConfigs = rootVdev.Get<NvList[]>("children");
+            if (rootVdev.Get<string>("type") != "root")
+            {
+                throw new Exception("Top level vdev is not of type root.");
+            }
+
+            var ret = new Vdev[numberOfChildren];
+            ulong guidSum = poolGuid;
+            for (uint i = 0; i < numberOfChildren; i++)
+            {
+                guidSum += topLevelVdevConfigs[i].Get<ulong>("guid");
+                ret[i] = Vdev.Create(topLevelVdevConfigs[i], hddMap);
+            }
+
+            // TODO: validate when there are multiple top level vdevs with multiple child vdevs.
+            if (guidSum != ub.GuidSum)
+            {
+                throw new Exception($"The sum of all vdev guids {guidSum} does not match the guid sum in the uberblock {ub.GuidSum}.");
+            }
+
             return ret;
         }
     }

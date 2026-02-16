@@ -9,16 +9,31 @@ using System.Runtime.InteropServices;
 namespace ZfsSharpLib
 {
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    struct uberblock_t
+    struct uberblock_t : IComparable<uberblock_t>
     {
         public ulong Magic;
         public ulong Version;
         public ulong Txg;
         public ulong GuidSum;
-        public ulong TimeStamp;
+        private ulong TimeStamp;
         public blkptr_t rootbp;
+        private ulong ub_software_version;
+        private ulong ub_mmp_magic;
+        private ulong ub_mmp_delay;
+        private ulong ub_mmp_config;
+        private ulong ub_checkpoint_txg;
+        private ulong ub_raidz_reflow_info;
 
         public const ulong UbMagic = 0x00bab10c;
+
+        public int CompareTo(uberblock_t other)
+        {
+            int ret = this.Txg.CompareTo(other.Txg);
+            if (ret != 0)
+                return ret;
+            return this.TimeStamp.CompareTo(other.TimeStamp);
+            // TODO: MMP comparison
+        }
     }
 
     static class Program
