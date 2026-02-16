@@ -31,6 +31,9 @@ namespace ZfsSharpLib
         NvList mConfig;
         ObjectSet mMos;
 
+        public string Name { get; set; }
+        public ulong Txg { get; private set; }
+
         [Conditional("DEBUG")]
         static unsafe void assertStructSize<T>(int size) where T : unmanaged
         {
@@ -106,6 +109,9 @@ namespace ZfsSharpLib
 
             CheckVersion(mConfig);
             CheckFeatures();
+
+            this.Txg = ub.Txg;
+            this.Name = mConfig.Get<string>("name");
         }
 
         private void LoadMosAndConfig(Vdev[] vdevs, uberblock_t ub)

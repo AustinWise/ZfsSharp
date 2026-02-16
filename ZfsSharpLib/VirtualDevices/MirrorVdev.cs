@@ -7,19 +7,16 @@ namespace ZfsSharpLib.VirtualDevices
 {
     class MirrorVdev : Vdev
     {
-        readonly Vdev[] mVdevs;
         public MirrorVdev(NvList config, Dictionary<ulong, LeafVdevInfo> leafs)
-            : base(config)
+            : base(config, config.Get<NvList[]>("children")
+                .Select(child => Vdev.Create(child, leafs)))
         {
-            this.mVdevs = config.Get<NvList[]>("children")
-                .Select(child => Vdev.Create(child, leafs))
-                .ToArray();
         }
 
         protected override void ReadBytesCore(Span<byte> dest, long offset)
         {
-            //TODO: use more than one child
-            mVdevs[0].ReadBytes(dest, offset);
+            //TODO: a more intelligent way of selecting which vdev to read from.
+            mChildren[offset % mChildren.Length].ReadBytes(dest, offset);
         }
 
     }

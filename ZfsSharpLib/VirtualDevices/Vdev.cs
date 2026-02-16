@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -7,12 +9,14 @@ namespace ZfsSharpLib.VirtualDevices
 {
     abstract class Vdev
     {
-        private MetaSlabs mMetaSlabs = null;
+        private MetaSlabs? mMetaSlabs = null;
+        protected readonly Vdev[] mChildren;
 
-        protected Vdev(NvList config)
+        protected Vdev(NvList config, IEnumerable<Vdev> children)
         {
             this.Guid = config.Get<ulong>("guid");
             this.ID = config.Get<ulong>("id");
+            this.mChildren = children.ToArray();
 
             MetaSlabArray = config.GetOptional<ulong>("metaslab_array");
             MetaSlabShift = config.GetOptional<ulong>("metaslab_shift");
@@ -23,6 +27,10 @@ namespace ZfsSharpLib.VirtualDevices
         //a bit of a layering violation
         public void InitMetaSlabs(ObjectSet mos)
         {
+            if (MetaSlabArray == null || MetaSlabShift == null || AShift == null)
+            {
+                throw new Exception("Missing metaslab information.");
+            }
             mMetaSlabs = new MetaSlabs(mos, (long)MetaSlabArray.Value, (int)MetaSlabShift.Value, (int)AShift.Value);
         }
 
@@ -41,6 +49,18 @@ namespace ZfsSharpLib.VirtualDevices
         {
             get;
             private set;
+        }
+        public ulong GuidSum
+        {
+            get
+            {
+                ulong ret = this.Guid;
+                foreach (var child in mChildren)
+                {
+                    ret += child.GuidSum;
+                }
+                return ret;
+            }
         }
         public ulong ID { get; private set; }
 
@@ -86,11 +106,9 @@ namespace ZfsSharpLib.VirtualDevices
                 throw new Exception("Top level config contains zero children?!");
             }
 
-            ulong guidSum = poolGuid[0];
             foreach (var hdd in hdds)
             {
                 ulong guid = hdd.Config.Get<ulong>("guid");
-                guidSum += guid;
                 hddMap.Add(guid, hdd);
                 var vdevTree = hdd.Config.Get<NvList>("vdev_tree");
                 // According to
@@ -100,21 +118,23 @@ namespace ZfsSharpLib.VirtualDevices
                 innerVdevConfigs[vdevTree.Get<ulong>("guid")] = vdevTree;
             }
 
-            // TODO: validate when there are multiple top level vdevs with multiple child vdevs.
-            if (guidSum != uberblock.GuidSum)
-            {
-                throw new Exception($"The sum of vdev guids {guidSum} does not match the guid sum in the uberblock {uberblock.GuidSum}.");
-            }
-
             if (innerVdevConfigs.Count != (int)numberOfChildren)
             {
                 throw new Exception($"We found {innerVdevConfigs.Count} but expected {numberOfChildren}.");
             }
 
-            var innerVdevs = new List<Vdev>();
+            var innerVdevs = new List<Vdev>((int)numberOfChildren);
+            ulong guidSum = poolGuid[0];
             foreach (var kvp in innerVdevConfigs)
             {
-                innerVdevs.Add(Vdev.Create(kvp.Value, hddMap));
+                Vdev vdev = Create(kvp.Value, hddMap);
+                guidSum += vdev.GuidSum;
+                innerVdevs.Add(vdev);
+            }
+
+            if (guidSum != uberblock.GuidSum)
+            {
+                throw new Exception($"The sum of vdev guids {guidSum} does not match the guid sum in the uberblock {uberblock.GuidSum}.");
             }
 
             var ret = innerVdevs.OrderBy(v => v.ID).ToArray();
@@ -126,7 +146,7 @@ namespace ZfsSharpLib.VirtualDevices
             return ret;
         }
 
-        public static Vdev[] CreateFromMosConfig(List<LeafVdevInfo> hdds, uberblock_t ub, NvList config)
+        public static Vdev[] CreateFromMosConfig(List<LeafVdevInfo> hdds, uberblock_t ub, NvList mosConfig)
         {
             var hddMap = new Dictionary<ulong, LeafVdevInfo>();
             foreach (var hdd in hdds)
@@ -135,22 +155,34 @@ namespace ZfsSharpLib.VirtualDevices
                 hddMap.Add(guid, hdd);
             }
 
-            var numberOfChildren = config.Get<ulong>("vdev_children");
-            ulong poolGuid = config.Get<ulong>("pool_guid");
+            var numberOfChildren = mosConfig.Get<ulong>("vdev_children");
+            ulong poolGuid = mosConfig.Get<ulong>("pool_guid");
 
-            NvList rootVdev = config.Get<NvList>("vdev_tree");
+            NvList rootVdev = mosConfig.Get<NvList>("vdev_tree");
             NvList[] topLevelVdevConfigs = rootVdev.Get<NvList[]>("children");
+            ulong rootGuid = rootVdev.Get<ulong>("guid");
             if (rootVdev.Get<string>("type") != "root")
             {
                 throw new Exception("Top level vdev is not of type root.");
             }
+            if (rootGuid != poolGuid)
+            {
+                throw new Exception($"Root vdev guid {rootGuid} does not match pool guid {poolGuid}.");
+            }
 
             var ret = new Vdev[numberOfChildren];
-            ulong guidSum = poolGuid;
+            ulong guidSum = rootGuid;
             for (uint i = 0; i < numberOfChildren; i++)
             {
-                guidSum += topLevelVdevConfigs[i].Get<ulong>("guid");
-                ret[i] = Vdev.Create(topLevelVdevConfigs[i], hddMap);
+                NvList config = topLevelVdevConfigs[i];
+                ulong id = config.Get<ulong>("id");
+                if (id != i)
+                {
+                    throw new Exception($"Expected vdev with id {i} but got {id}.");
+                }
+                Vdev vdev = Create(config, hddMap);
+                guidSum += vdev.GuidSum;
+                ret[i] = vdev;
             }
 
             // TODO: validate when there are multiple top level vdevs with multiple child vdevs.

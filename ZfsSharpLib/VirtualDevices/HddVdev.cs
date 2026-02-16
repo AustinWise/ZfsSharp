@@ -11,7 +11,7 @@ namespace ZfsSharpLib.VirtualDevices
     {
         readonly HardDisk mHdd;
         public HddVdev(NvList config, LeafVdevInfo hdd)
-            : base(config)
+            : base(config, Array.Empty<Vdev>())
         {
             this.mHdd = hdd.HDD;
         }

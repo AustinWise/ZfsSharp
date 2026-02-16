@@ -47,6 +47,8 @@ namespace ZfsSharp
 
             using (var zfs = new Zfs(vdevs))
             {
+                Console.WriteLine($"Loaded pool '{zfs.Name}' at txg {zfs.Txg}");
+
                 sw = Stopwatch.StartNew();
                 foreach (var ds in zfs.GetAllDataSets())
                 {
