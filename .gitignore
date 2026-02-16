@@ -10,3 +10,6 @@ packages
 .vs/
 *.vspx
 launchSettings.json
+*.o
+*.so
+*.dylib

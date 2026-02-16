@@ -1,33 +1,30 @@
 ﻿using System;
+using System.ComponentModel;
 using System.IO;
-using System.IO.MemoryMappedFiles;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 
 namespace ZfsSharpLib.HardDisks
 {
-    unsafe class FileHardDisk : HardDisk
+     partial class FileHardDisk : HardDisk
     {
-        private MemoryMappedFile mFile;
-        private MemoryMappedViewAccessor mViewAcessor;
-        private byte* mPointer;
+        private SafeFileHandle mFile;
         private long mSize;
 
         public FileHardDisk(string path)
         {
-            mFile = MemoryMappedFile.CreateFromFile(path, FileMode.Open);
-            mViewAcessor = mFile.CreateViewAccessor();
-            long fileSize = new FileInfo(path).Length;
-            //Limit the range of data we read to the Capacity of the ViewAccessor
-            //in the unlikly case that it is smaller than the file size we read.
-            //We can't just use the Capacity though, as it is round up to the page size.
-            mSize = Math.Min(mViewAcessor.Capacity, fileSize);
-            mPointer = null;
-            mViewAcessor.SafeMemoryMappedViewHandle.AcquirePointer(ref mPointer);
+            mFile = File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            mSize = GetFileLength(mFile);
         }
 
         public override void ReadBytes(Span<byte> dest, long offset)
         {
             CheckOffsets(offset, dest.Length);
-            new Span<byte>(mPointer + offset, dest.Length).CopyTo(dest);
+            int read = RandomAccess.Read(mFile, dest, offset);
+            if (read != dest.Length)
+            {
+                throw new IOException("Failed to read the expected number of bytes");
+            }
         }
 
         public override long Length
@@ -37,10 +34,41 @@ namespace ZfsSharpLib.HardDisks
 
         public override void Dispose()
         {
-            mPointer = null;
-            mViewAcessor.SafeMemoryMappedViewHandle.ReleasePointer();
-            mViewAcessor.Dispose();
             mFile.Dispose();
         }
+
+        private static long GetFileLength(SafeFileHandle fileHandle)
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                // TODO: support block devices on Windows
+                return RandomAccess.GetLength(fileHandle);
+            }
+
+            int isBlockDevice = IsBlockDevice(fileHandle);
+            if (isBlockDevice == -1)
+            {
+                throw new Win32Exception(Marshal.GetLastPInvokeError(), "Failed to determine if file is a block device.");
+            }
+            else if (isBlockDevice == 1)
+            {
+                long ret = GetBlockDeviceLength(fileHandle);
+                if (ret == -1)
+                {
+                    throw new Win32Exception(Marshal.GetLastPInvokeError(), "Failed to get block device length.");
+                }
+                return ret;
+            }
+            else
+            {
+                return RandomAccess.GetLength(fileHandle);
+            }
+        }
+
+        [LibraryImport("native_helpers", EntryPoint = "is_block_device", SetLastError = true)]
+        private static partial int IsBlockDevice(SafeFileHandle fd);
+
+        [LibraryImport("native_helpers", EntryPoint = "get_block_device_length", SetLastError = true)]
+        private static partial long GetBlockDeviceLength(SafeFileHandle fd);
     }
 }

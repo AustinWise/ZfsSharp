@@ -10,4 +10,28 @@
     <PackageReference Include="ZstdSharp.Port" Version="0.8.6" />
   </ItemGroup>
 
+  <!-- I don't know if CheckForDuplicateItems is the right target to put this before.
+       I just know that putting it before Build was too late to end up in the output of projects
+       referencing this one via ProjectReference.
+    -->
+  <Target Name="BuildZfsSharpNativeHelpers" Condition="!$([MSBuild]::IsOsPlatform(Windows))"
+    BeforeTargets="CheckForDuplicateItems">
+
+    <PropertyGroup>
+      <ZfsNativeHelpersSharedLibrary Condition="!$([MSBuild]::IsOsPlatform(macOS))">native_helpers.so</ZfsNativeHelpersSharedLibrary>
+      <ZfsNativeHelpersSharedLibrary Condition="$([MSBuild]::IsOsPlatform(macOS))">native_helpers.dylib</ZfsNativeHelpersSharedLibrary>
+    </PropertyGroup>
+
+    <Exec Command="make -C $(MSBuildThisFileDirectory) $(ZfsNativeHelpersSharedLibrary)" />
+
+    <ItemGroup>
+      <Content Include="$(MSBuildThisFileDirectory)$(ZfsNativeHelpersSharedLibrary)">
+        <Pack>true</Pack>
+        <PackagePath>runtimes/$(RuntimeIdentifier)/native</PackagePath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </Content>
+    </ItemGroup>
+  </Target>
+
 </Project>
